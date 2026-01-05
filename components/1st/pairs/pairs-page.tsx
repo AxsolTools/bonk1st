@@ -123,6 +123,7 @@ function RecentPairsTable({
   pairs: {
     tokenMint: string
     tokenSymbol: string
+    tokenLogo?: string
     pool: TargetPool
     liquidity: number
     createdAt: number
@@ -157,7 +158,11 @@ function RecentPairsTable({
             >
               <td className="py-3 pr-4">
                 <div className="flex items-center gap-2">
-                  <TokenLogo symbol={pair.tokenSymbol} size="sm" />
+                  <TokenLogo 
+                    src={pair.tokenLogo || `https://dd.dexscreener.com/ds-data/tokens/solana/${pair.tokenMint}.png`} 
+                    symbol={pair.tokenSymbol} 
+                    size="sm" 
+                  />
                   <span className="font-semibold text-white">${pair.tokenSymbol}</span>
                 </div>
               </td>
@@ -222,6 +227,7 @@ export function PairsPage() {
     return newTokens.slice(0, 20).map(token => ({
       tokenMint: token.tokenMint,
       tokenSymbol: token.tokenSymbol || 'UNKNOWN',
+      tokenLogo: token.tokenLogo || `https://dd.dexscreener.com/ds-data/tokens/solana/${token.tokenMint}.png`,
       pool: token.pool,
       liquidity: token.initialLiquidityUsd,
       createdAt: token.creationTimestamp,

@@ -106,7 +106,7 @@ export function NewTokenFeed() {
             >
               <div className="flex items-start gap-3">
                 <TokenLogo 
-                  src={token.tokenLogo} 
+                  src={token.tokenLogo || `https://dd.dexscreener.com/ds-data/tokens/solana/${token.tokenMint}.png`} 
                   symbol={token.tokenSymbol || '??'} 
                   size="lg" 
                 />
