@@ -8,7 +8,6 @@ import { GoldButton } from "../ui/gold-button"
 import { GoldToggle, GoldInput } from "../ui/gold-input"
 import { SwapPanel1st } from "../swap/swap-panel-1st"
 import { use1stSniper } from "@/hooks/use-1st-sniper"
-import { useLivePrice } from "@/hooks/use-live-price"
 import { formatUsd, formatTimeAgo, type TargetPool } from "@/lib/1st/sniper-config"
 
 // Pool configuration
@@ -131,37 +130,66 @@ function LivePairRow({
   }
   onSelectPair: (mint: string, pool: TargetPool) => void
 }) {
-  const [stats, setStats] = React.useState<{ liquidity: number } | null>(null)
+  const [liveData, setLiveData] = React.useState<{ 
+    liquidity: number
+    logo: string | null 
+  }>({
+    liquidity: pair.initialLiquidity,
+    logo: pair.tokenLogo || null,
+  })
   
-  // Fetch live stats from existing backend
+  // Fetch live data from existing backend APIs
   React.useEffect(() => {
-    const fetchStats = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch(`/api/token/${pair.tokenMint}/stats`)
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.data) {
-            setStats({ liquidity: data.data.liquidity || 0 })
+        const [metadataRes, statsRes] = await Promise.all([
+          fetch(`/api/token/${pair.tokenMint}/metadata`),
+          fetch(`/api/token/${pair.tokenMint}/stats`),
+        ])
+        
+        let liquidity = pair.initialLiquidity
+        let logo = pair.tokenLogo || null
+        
+        // Get logo from metadata
+        if (metadataRes.ok) {
+          const metaData = await metadataRes.json()
+          if (metaData.success && metaData.data) {
+            logo = metaData.data.logoUri || metaData.data.logo || metaData.data.image || logo
           }
         }
+        
+        // Get liquidity from stats
+        if (statsRes.ok) {
+          const statsData = await statsRes.json()
+          if (statsData.success && statsData.data) {
+            if (statsData.data.liquidity > 0) {
+              liquidity = statsData.data.liquidity
+            } else if (statsData.data.bondingCurveSol > 0) {
+              liquidity = statsData.data.bondingCurveSol * 150
+            }
+          }
+        }
+        
+        setLiveData({ liquidity, logo })
       } catch (error) {
-        console.debug('[PAIR-ROW] Stats fetch failed:', error)
+        console.debug('[PAIR-ROW] Data fetch failed:', error)
       }
     }
     
-    fetchStats()
-    const interval = setInterval(fetchStats, 10_000)
+    fetchData()
+    const interval = setInterval(fetchData, 10_000)
     return () => clearInterval(interval)
-  }, [pair.tokenMint])
+  }, [pair.tokenMint, pair.initialLiquidity, pair.tokenLogo])
   
-  const displayLiquidity = stats?.liquidity || pair.initialLiquidity
+  const displayLiquidity = liveData.liquidity
+  const displayLogo = liveData.logo || `https://dd.dexscreener.com/ds-data/tokens/solana/${pair.tokenMint}.png`
   
   return (
     <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
       <td className="py-3 pr-4">
         <div className="flex items-center gap-2">
           <TokenLogo 
-            src={pair.tokenLogo || `https://dd.dexscreener.com/ds-data/tokens/solana/${pair.tokenMint}.png`} 
+            src={displayLogo} 
             symbol={pair.tokenSymbol} 
             size="sm" 
           />

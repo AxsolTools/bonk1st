@@ -8,7 +8,6 @@ import { GoldButton } from "../ui/gold-button"
 import { GoldBadge, PoolBadge, BlockBadge, TokenLogo } from "../ui/gold-badge"
 import { GoldToggle } from "../ui/gold-input"
 import { use1stSniper } from "@/hooks/use-1st-sniper"
-import { useLivePrice } from "@/hooks/use-live-price"
 import { formatTimeAgo, formatUsd, type TargetPool, type NewTokenEvent } from "@/lib/1st/sniper-config"
 
 // Individual token card with live data fetching
@@ -19,44 +18,71 @@ function LiveTokenCard({
   token: NewTokenEvent
   onClick: () => void 
 }) {
-  const [stats, setStats] = React.useState<{
+  const [liveData, setLiveData] = React.useState<{
     liquidity: number
-    holders: number
-    bondingCurveProgress: number
-  } | null>(null)
+    marketCap: number
+    logo: string | null
+  }>({
+    liquidity: token.initialLiquidityUsd,
+    marketCap: token.initialMarketCap,
+    logo: token.tokenLogo || null,
+  })
+  const [isLoading, setIsLoading] = React.useState(true)
   
-  // Use the existing live price hook for market cap
-  const { marketCap, isLoading: priceLoading } = useLivePrice(token.tokenMint)
-  
-  // Fetch stats from existing backend API
+  // Fetch metadata and stats from existing backend APIs
   React.useEffect(() => {
-    const fetchStats = async () => {
+    const fetchTokenData = async () => {
       try {
-        const response = await fetch(`/api/token/${token.tokenMint}/stats`)
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.data) {
-            setStats({
-              liquidity: data.data.liquidity || 0,
-              holders: data.data.holders || 0,
-              bondingCurveProgress: data.data.bondingCurveProgress || 0,
-            })
+        // Fetch metadata and stats in parallel
+        const [metadataRes, statsRes] = await Promise.all([
+          fetch(`/api/token/${token.tokenMint}/metadata`),
+          fetch(`/api/token/${token.tokenMint}/stats`),
+        ])
+        
+        let liquidity = token.initialLiquidityUsd
+        let marketCap = token.initialMarketCap
+        let logo = token.tokenLogo || null
+        
+        // Parse metadata (includes logo, price, marketCap from Helius DAS)
+        if (metadataRes.ok) {
+          const metaData = await metadataRes.json()
+          if (metaData.success && metaData.data) {
+            logo = metaData.data.logoUri || metaData.data.logo || metaData.data.image || logo
+            if (metaData.data.marketCap && metaData.data.marketCap > 0) {
+              marketCap = metaData.data.marketCap
+            }
           }
         }
+        
+        // Parse stats (liquidity, bonding curve)
+        if (statsRes.ok) {
+          const statsData = await statsRes.json()
+          if (statsData.success && statsData.data) {
+            if (statsData.data.liquidity > 0) {
+              liquidity = statsData.data.liquidity
+            } else if (statsData.data.bondingCurveSol > 0) {
+              liquidity = statsData.data.bondingCurveSol * 150 // SOL ~$150
+            }
+          }
+        }
+        
+        setLiveData({ liquidity, marketCap, logo })
       } catch (error) {
-        console.debug('[TOKEN-CARD] Stats fetch failed:', error)
+        console.debug('[TOKEN-CARD] Data fetch failed:', error)
+      } finally {
+        setIsLoading(false)
       }
     }
     
-    fetchStats()
+    fetchTokenData()
     // Poll every 10 seconds like existing components
-    const interval = setInterval(fetchStats, 10_000)
+    const interval = setInterval(fetchTokenData, 10_000)
     return () => clearInterval(interval)
-  }, [token.tokenMint])
+  }, [token.tokenMint, token.initialLiquidityUsd, token.initialMarketCap, token.tokenLogo])
   
-  // Use live data if available, fallback to initial values
-  const displayLiquidity = stats?.liquidity || token.initialLiquidityUsd
-  const displayMarketCap = marketCap > 0 ? marketCap : token.initialMarketCap
+  const displayLiquidity = liveData.liquidity
+  const displayMarketCap = liveData.marketCap
+  const displayLogo = liveData.logo || `https://dd.dexscreener.com/ds-data/tokens/solana/${token.tokenMint}.png`
   
   return (
     <GoldCard
@@ -66,7 +92,7 @@ function LiveTokenCard({
     >
       <div className="flex items-start gap-3">
         <TokenLogo 
-          src={token.tokenLogo || `https://dd.dexscreener.com/ds-data/tokens/solana/${token.tokenMint}.png`} 
+          src={displayLogo} 
           symbol={token.tokenSymbol || '??'} 
           size="lg" 
         />
@@ -102,7 +128,7 @@ function LiveTokenCard({
         <div className="text-center">
           <p className="text-[10px] text-white/40">MC</p>
           <p className="text-xs font-semibold text-white">
-            {priceLoading ? '...' : formatUsd(displayMarketCap)}
+            {isLoading ? '...' : formatUsd(displayMarketCap)}
           </p>
         </div>
         <div className="text-center">

@@ -126,14 +126,35 @@ async function fetchFromDAS(address: string) {
 
     if (!asset) return null
 
+    // Extract price info from token_info (Helius provides this for top tokens)
+    const pricePerToken = asset.token_info?.price_info?.price_per_token || 0
+    const supply = asset.token_info?.supply || 0
+    const decimals = asset.token_info?.decimals || 6
+    
+    // Calculate market cap if we have price and supply
+    let marketCap = 0
+    if (pricePerToken > 0 && supply > 0) {
+      const adjustedSupply = supply / Math.pow(10, decimals)
+      marketCap = pricePerToken * adjustedSupply
+    }
+
+    // Get logo from multiple possible locations in DAS response
+    const logoUri = asset.content?.links?.image || 
+                    asset.content?.files?.[0]?.uri || 
+                    `https://dd.dexscreener.com/ds-data/tokens/solana/${address}.png`
+
     return {
       address: asset.id,
       name: asset.content?.metadata?.name || asset.token_info?.symbol || 'Unknown',
       symbol: asset.content?.metadata?.symbol || asset.token_info?.symbol || 'UNKNOWN',
-      decimals: asset.token_info?.decimals || 0,
-      logoUri: asset.content?.links?.image || asset.content?.files?.[0]?.uri || '',
+      decimals,
+      logoUri,
+      logo: logoUri, // Also include as 'logo' for compatibility
+      image: logoUri, // Also include as 'image' for compatibility
       description: asset.content?.metadata?.description || '',
-      supply: asset.token_info?.supply || 0,
+      supply,
+      pricePerToken,
+      marketCap,
       isNft: asset.interface === 'V1_NFT' || asset.interface === 'ProgrammableNFT',
       isFungible: asset.interface === 'FungibleToken' || asset.interface === 'FungibleAsset',
       creators: asset.creators || [],

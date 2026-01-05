@@ -280,14 +280,18 @@ export function use1stSniper() {
       let liquidity: number | undefined
       let marketCap: number | undefined
       
-      // Parse metadata response (symbol, name, logo)
+      // Parse metadata response (symbol, name, logo, price, marketCap from Helius DAS)
       if (metadataRes.ok) {
         const metaData = await metadataRes.json()
         if (metaData.success && metaData.data) {
           symbol = metaData.data.symbol
           name = metaData.data.name
-          // API returns logoUri, not logo
+          // API returns logoUri, logo, or image
           logo = metaData.data.logoUri || metaData.data.logo || metaData.data.image
+          // Helius DAS provides price and market cap for tokens
+          if (metaData.data.marketCap && metaData.data.marketCap > 0) {
+            marketCap = metaData.data.marketCap
+          }
         }
       }
       
@@ -300,7 +304,10 @@ export function use1stSniper() {
           if (!liquidity && statsData.data.bondingCurveSol) {
             liquidity = statsData.data.bondingCurveSol * 150 // SOL price ~$150
           }
-          marketCap = statsData.data.marketCap || (liquidity ? liquidity * 2 : 0)
+          // Only use stats marketCap if we don't already have one from metadata
+          if (!marketCap) {
+            marketCap = statsData.data.marketCap || (liquidity ? liquidity * 2 : 0)
+          }
         }
       }
       
