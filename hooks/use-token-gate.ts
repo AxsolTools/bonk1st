@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { useAuth } from "@/contexts/auth-context"
+import { useAuth } from "@/components/providers/auth-provider"
 import { getTokenGateConfig } from "@/lib/1st/token-gate-config"
 
 export interface TokenGateStatus {
