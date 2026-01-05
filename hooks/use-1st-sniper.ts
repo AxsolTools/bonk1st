@@ -110,13 +110,31 @@ const INVALID_TOKEN_ADDRESSES = new Set([
   '9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin',
 ])
 
-// Helper to validate if an address is a valid token mint
+// Base58 character set (Solana addresses use this)
+// Base58 does NOT contain: 0, O, I, l (to avoid confusion)
+const BASE58_CHARS = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+const BASE58_REGEX = /^[1-9A-HJ-NP-Za-km-z]+$/
+
+// Helper to validate if an address is a valid Solana base58 token mint
 const isValidTokenMint = (address: string | null | undefined): boolean => {
   if (!address) return false
+  
+  // Length check - Solana addresses are 32-44 chars
   if (address.length < 32 || address.length > 44) return false
+  
+  // CRITICAL: Must be valid base58 (no 0, O, I, l characters)
+  // This filters out base64 encoded data which contains these chars
+  if (!BASE58_REGEX.test(address)) return false
+  
+  // Reject known system addresses
   if (INVALID_TOKEN_ADDRESSES.has(address)) return false
+  
+  // Reject addresses with lots of consecutive identical chars (likely padding/garbage)
+  if (/(.)\1{7,}/.test(address)) return false
+  
   // Reject addresses that look like program IDs (lots of 1s)
-  if (address.includes('11111111111')) return false
+  if (address.includes('11111111')) return false
+  
   // Reject addresses that start with known program prefixes
   if (address.startsWith('ComputeBudget')) return false
   if (address.startsWith('Token')) return false
@@ -124,6 +142,14 @@ const isValidTokenMint = (address: string | null | undefined): boolean => {
   if (address.startsWith('BPF')) return false
   if (address.startsWith('Native')) return false
   if (address.startsWith('FLASH')) return false
+  
+  // Reject addresses that look like base64 data (contain + / =)
+  if (address.includes('+') || address.includes('/') || address.includes('=')) return false
+  
+  // Reject addresses that are mostly uppercase A's (common in garbage data)
+  const upperACount = (address.match(/A/g) || []).length
+  if (upperACount > address.length * 0.4) return false
+  
   return true
 }
 
