@@ -311,10 +311,8 @@ export function use1stSniper() {
         }
       }
       
-      // Fallback to DexScreener CDN for logo if not found
-      if (!logo) {
-        logo = `https://dd.dexscreener.com/ds-data/tokens/solana/${tokenMint}.png`
-      }
+      // Don't use DexScreener CDN fallback - it 404s for new tokens
+      // The UI will show token initials instead
       
       return { symbol, name, logo, liquidity, marketCap }
     } catch (error) {

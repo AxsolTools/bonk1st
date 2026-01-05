@@ -19,10 +19,12 @@ interface DASAsset {
   id: string
   interface: string
   content?: {
+    json_uri?: string
     metadata?: {
       name?: string
       symbol?: string
       description?: string
+      image?: string  // Image can be in metadata
     }
     links?: {
       image?: string
@@ -30,6 +32,7 @@ interface DASAsset {
     }
     files?: Array<{
       uri?: string
+      cdn_uri?: string
       mime?: string
     }>
   }
@@ -138,10 +141,37 @@ async function fetchFromDAS(address: string) {
       marketCap = pricePerToken * adjustedSupply
     }
 
-    // Get logo from multiple possible locations in DAS response
-    const logoUri = asset.content?.links?.image || 
-                    asset.content?.files?.[0]?.uri || 
-                    `https://dd.dexscreener.com/ds-data/tokens/solana/${address}.png`
+    // Get logo from multiple possible locations in DAS response (priority order)
+    // 1. content.links.image - most reliable
+    // 2. content.metadata.image - from parsed JSON
+    // 3. content.files[0].cdn_uri - Helius CDN cached version
+    // 4. content.files[0].uri - direct file URI
+    let logoUri = asset.content?.links?.image || 
+                  asset.content?.metadata?.image ||
+                  asset.content?.files?.[0]?.cdn_uri ||
+                  asset.content?.files?.[0]?.uri ||
+                  null
+
+    // If no image found but we have json_uri, try to fetch it
+    if (!logoUri && asset.content?.json_uri) {
+      try {
+        const jsonResponse = await fetch(asset.content.json_uri, {
+          signal: AbortSignal.timeout(3000) // 3 second timeout
+        })
+        if (jsonResponse.ok) {
+          const jsonData = await jsonResponse.json()
+          logoUri = jsonData.image || jsonData.logo || jsonData.icon || null
+        }
+      } catch {
+        // Ignore fetch errors for off-chain metadata
+      }
+    }
+
+    // Final fallback - don't use DexScreener CDN as it returns 404 for new tokens
+    // Instead return null so the frontend can show initials
+    if (!logoUri) {
+      logoUri = null
+    }
 
     return {
       address: asset.id,

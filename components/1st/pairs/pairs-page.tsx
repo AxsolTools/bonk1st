@@ -182,7 +182,8 @@ function LivePairRow({
   }, [pair.tokenMint, pair.initialLiquidity, pair.tokenLogo])
   
   const displayLiquidity = liveData.liquidity
-  const displayLogo = liveData.logo || `https://dd.dexscreener.com/ds-data/tokens/solana/${pair.tokenMint}.png`
+  // Don't use DexScreener CDN fallback - it 404s for new tokens
+  const displayLogo = liveData.logo || undefined
   
   return (
     <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">

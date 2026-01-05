@@ -82,7 +82,9 @@ function LiveTokenCard({
   
   const displayLiquidity = liveData.liquidity
   const displayMarketCap = liveData.marketCap
-  const displayLogo = liveData.logo || `https://dd.dexscreener.com/ds-data/tokens/solana/${token.tokenMint}.png`
+  // Don't use DexScreener CDN fallback - it 404s for new tokens and causes console errors
+  // TokenLogo component will show initials if no logo
+  const displayLogo = liveData.logo || undefined
   
   return (
     <GoldCard
