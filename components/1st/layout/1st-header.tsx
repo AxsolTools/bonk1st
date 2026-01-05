@@ -4,13 +4,43 @@ import * as React from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
+import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/providers/auth-provider"
 import { GoldButton } from "../ui/gold-button"
 import { GoldBadge } from "../ui/gold-badge"
 
-// 1ST Logo Component - Using actual logo image
-const FirstLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }) => {
+// Sniper recoil animation - subtle pump in/out effect like a rifle kick
+const sniperRecoilAnimation = {
+  animate: {
+    // Subtle scale pulse - like the gun breathing/recoiling
+    scale: [1, 1.08, 0.97, 1.02, 1],
+    // Tiny kickback movement (negative = kicks back, positive = forward)
+    x: [0, -2, 1, -0.5, 0],
+    // Subtle rotation for realism
+    rotate: [0, -1, 0.5, -0.2, 0],
+    // Glow intensity pulse
+    filter: [
+      'drop-shadow(0 0 8px rgba(212,175,55,0.4))',
+      'drop-shadow(0 0 15px rgba(255,215,0,0.8))',
+      'drop-shadow(0 0 6px rgba(212,175,55,0.3))',
+      'drop-shadow(0 0 10px rgba(212,175,55,0.5))',
+      'drop-shadow(0 0 8px rgba(212,175,55,0.4))',
+    ],
+  },
+  transition: {
+    duration: 2.5,
+    ease: [0.25, 0.1, 0.25, 1], // Custom easing for snappy recoil
+    repeat: Infinity,
+    repeatDelay: 1.5, // Pause between "shots"
+  },
+}
+
+// 1ST Logo Component - Using actual logo image with sniper animation
+const FirstLogo: React.FC<{ size?: 'sm' | 'md' | 'lg'; animated?: boolean }> = ({ 
+  size = 'md', 
+  animated = true 
+}) => {
   const sizes = {
     sm: 32,
     md: 40,
@@ -20,16 +50,21 @@ const FirstLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }) => 
   const dimension = sizes[size]
   
   return (
-    <div className="relative" style={{ width: dimension, height: dimension }}>
+    <motion.div 
+      className="relative" 
+      style={{ width: dimension, height: dimension }}
+      animate={animated ? sniperRecoilAnimation.animate : undefined}
+      transition={animated ? sniperRecoilAnimation.transition : undefined}
+    >
       <Image
         src="/1st-logo.png"
-        alt="1ST Logo"
+        alt="BONK1ST Sniper"
         width={dimension}
         height={dimension}
-        className="object-contain drop-shadow-[0_0_10px_rgba(212,175,55,0.5)]"
+        className="object-contain"
         priority
       />
-    </div>
+    </motion.div>
   )
 }
 
