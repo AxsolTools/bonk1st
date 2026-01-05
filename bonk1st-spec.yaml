@@ -1,0 +1,41 @@
+﻿name: bonk1st
+region: nyc
+services:
+- name: web
+  github:
+    repo: AxsolTools/bonk1st
+    branch: main
+    deploy_on_push: true
+  build_command: pnpm install && pnpm build
+  run_command: pnpm start
+  http_port: 3000
+  instance_size_slug: apps-s-1vcpu-1gb
+  instance_count: 1
+  envs:
+  - key: NEXT_PUBLIC_SUPABASE_URL
+    scope: RUN_AND_BUILD_TIME
+    value: https://rbmzrqsnsvzgoxzpynky.supabase.co
+  - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+    scope: RUN_AND_BUILD_TIME
+    value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJibXpycXNuc3Z6Z294enB5bmt5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0NDk4NjMsImV4cCI6MjA3ODAyNTg2M30.OBIBVO-f3YQCRtZlg0dpjCtnTyP8kS9OzKPVHHKlX8o
+  - key: SUPABASE_SERVICE_ROLE_KEY
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+    value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJibXpycXNuc3Z6Z294enB5bmt5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjQ0OTg2MywiZXhwIjoyMDc4MDI1ODYzfQ.2LWSL_-rKZuaRqugScUUWusupdD2a-z8SACQmcUuh9w
+  - key: HELIUS_API_KEY
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+    value: c4d663d2-d44e-4066-abf7-008d8cc71692
+  - key: NEXT_PUBLIC_HELIUS_API_KEY
+    scope: RUN_AND_BUILD_TIME
+    value: c4d663d2-d44e-4066-abf7-008d8cc71692
+  - key: HELIUS_RPC_URL
+    scope: RUN_AND_BUILD_TIME
+    value: https://mainnet.helius-rpc.com/?api-key=c4d663d2-d44e-4066-abf7-008d8cc71692
+  - key: NODE_ENV
+    scope: RUN_AND_BUILD_TIME
+    value: production
+  - key: ENCRYPTION_KEY
+    scope: RUN_AND_BUILD_TIME
+    type: SECRET
+    value: a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456

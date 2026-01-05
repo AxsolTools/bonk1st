@@ -160,7 +160,7 @@ async function fetchFromDexScreener(): Promise<TokenData[]> {
   const profileTokens = new Set<string>()
   
   try {
-    // Fetch from ALL DexScreener endpoints
+    // Fetch from ALL DexScreener endpoints including bonk-specific searches
     const endpoints = [
       { url: 'https://api.dexscreener.com/token-boosts/latest/v1', type: 'boost' },
       { url: 'https://api.dexscreener.com/token-boosts/top/v1', type: 'boost' },
@@ -168,6 +168,11 @@ async function fetchFromDexScreener(): Promise<TokenData[]> {
       { url: 'https://api.dexscreener.com/latest/dex/search?q=solana', type: 'search' },
       { url: 'https://api.dexscreener.com/latest/dex/search?q=pump', type: 'search' },
       { url: 'https://api.dexscreener.com/latest/dex/search?q=sol', type: 'search' },
+      // bonk.fun / letsbonk.fun specific searches
+      { url: 'https://api.dexscreener.com/latest/dex/search?q=bonk', type: 'search' },
+      { url: 'https://api.dexscreener.com/latest/dex/search?q=letsbonk', type: 'search' },
+      { url: 'https://api.dexscreener.com/latest/dex/search?q=USD1', type: 'search' },
+      { url: 'https://api.dexscreener.com/latest/dex/search?q=launchlab', type: 'search' },
     ]
 
     const results = await Promise.allSettled(
@@ -745,6 +750,61 @@ async function fetchAndAccumulate(): Promise<void> {
 }
 
 // ============================================================================
+// BONK TOKEN DETECTION
+// ============================================================================
+
+const USD1_MINT = 'USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB'
+const WSOL_MINT = 'So11111111111111111111111111111111111111112'
+
+/**
+ * Check if a token is a bonk.fun token
+ * Criteria:
+ * - Address ends with "bonk" (lowercase)
+ * - From bonk.fun / letsbonk.fun / launchlab dex
+ * - Paired with USD1
+ */
+export function isBonkToken(token: TokenData): boolean {
+  // 1. Address ends with "bonk"
+  if (token.address.toLowerCase().endsWith('bonk')) {
+    return true
+  }
+  
+  // 2. DEX ID indicates bonk.fun
+  const dexId = (token.dexId || '').toLowerCase()
+  if (dexId.includes('launchlab') || dexId.includes('bonk') || dexId.includes('letsbonk')) {
+    return true
+  }
+  
+  // 3. Source indicates bonk
+  const source = (token.source || '').toLowerCase()
+  if (source.includes('bonk') || source.includes('launchlab')) {
+    return true
+  }
+  
+  return false
+}
+
+/**
+ * Get bonk pool type for a token
+ */
+export function getBonkPoolType(token: TokenData): 'bonk-usd1' | 'bonk-sol' | 'other' {
+  const pairInfo = (token.pairAddress || '').toLowerCase()
+  const dexId = (token.dexId || '').toLowerCase()
+  
+  // Check for USD1 pairing
+  if (pairInfo.includes('usd1') || dexId.includes('usd1')) {
+    return 'bonk-usd1'
+  }
+  
+  // Default to SOL pair for bonk tokens
+  if (isBonkToken(token)) {
+    return 'bonk-sol'
+  }
+  
+  return 'other'
+}
+
+// ============================================================================
 // PUBLIC API
 // ============================================================================
 
@@ -752,8 +812,10 @@ export async function fetchMasterTokenFeed(options: {
   page?: number
   limit?: number
   sort?: 'trending' | 'new' | 'volume' | 'gainers' | 'losers' | 'buy_signal' | 'risk' | 'prepump'
+  bonkOnly?: boolean  // Filter for bonk.fun tokens only
+  poolType?: 'bonk-usd1' | 'bonk-sol' | 'all'  // Filter by pool type
 } = {}): Promise<FeedResult> {
-  const { page = 1, limit = 100, sort = 'trending' } = options
+  const { page = 1, limit = 100, sort = 'trending', bonkOnly = false, poolType = 'all' } = options
   const startTime = Date.now()
   
   // Fetch if cache is stale (>8 seconds) or empty
@@ -763,6 +825,16 @@ export async function fetchMasterTokenFeed(options: {
   
   // Get all tokens from cache
   let allTokens = Array.from(MASTER_TOKEN_CACHE.values())
+  
+  // Filter for bonk tokens if requested
+  if (bonkOnly) {
+    allTokens = allTokens.filter(isBonkToken)
+  }
+  
+  // Filter by pool type if specified
+  if (poolType && poolType !== 'all') {
+    allTokens = allTokens.filter(token => getBonkPoolType(token) === poolType)
+  }
   
   // Sort
   switch (sort) {

@@ -12,11 +12,17 @@ export async function GET(request: Request) {
   const limit = parseInt(searchParams.get('limit') || '100')
   const sort = (searchParams.get('sort') || 'trending') as 'trending' | 'new' | 'volume' | 'gainers' | 'losers' | 'buy_signal' | 'risk' | 'prepump'
   
+  // bonk.fun filtering
+  const bonkOnly = searchParams.get('bonk') === 'true'
+  const poolType = (searchParams.get('pool') || 'all') as 'bonk-usd1' | 'bonk-sol' | 'all'
+  
   try {
     const result = await fetchMasterTokenFeed({
       page,
       limit,
       sort,
+      bonkOnly,
+      poolType,
     })
     
     return NextResponse.json({
@@ -29,6 +35,11 @@ export async function GET(request: Request) {
       sources: result.sources,
       cacheSize: getMasterCacheSize(),
       fetchTime: result.fetchTime,
+      filters: {
+        bonkOnly,
+        poolType,
+        sort,
+      },
     })
   } catch (error) {
     console.error('Error fetching live tokens:', error)
