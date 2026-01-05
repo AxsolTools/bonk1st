@@ -1,230 +1,124 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { useAuth } from "@/components/providers/auth-provider"
-import { useTokenConfig } from "@/components/dice/useTokenConfig"
+import { useAuth } from "@/contexts/auth-context"
+import { getTokenGateConfig } from "@/lib/1st/token-gate-config"
 
-interface TokenGateConfig {
-  enabled: boolean
-  minTokens: number
-}
-
-interface TokenGateState {
-  isChecking: boolean
+export interface TokenGateStatus {
+  isLoading: boolean
   hasAccess: boolean
-  tokenBalance: number
-  requiredBalance: number
-  shortfall: number
-  tokenSymbol: string
-  tokenMint: string | null
-  walletConnected: boolean
-  error: string | null
   gateEnabled: boolean
+  tokenMint: string
+  tokenSymbol: string
+  requiredAmount: number
+  currentBalance: number
+  message: string
+  error: string | null
 }
 
-interface UseTokenGateReturn extends TokenGateState {
-  refresh: () => Promise<void>
-  formatBalance: (amount: number) => string
-}
-
-// Default config (will be overridden by API)
-const DEFAULT_CONFIG: TokenGateConfig = {
-  enabled: false, // Disabled by default
-  minTokens: 5_000_000,
-}
-
-export function useTokenGate(minRequired?: number): UseTokenGateReturn {
-  const { activeWallet, isAuthenticated } = useAuth()
-  const publicKey = activeWallet?.public_key || null
-  const connected = isAuthenticated && !!publicKey
-  const { token, isLoading: configLoading } = useTokenConfig()
+/**
+ * Hook to check if the current user has access through the token gate
+ * Uses the main wallet from the database
+ */
+export function useTokenGate(): TokenGateStatus {
+  const { mainWallet, isAuthenticated } = useAuth()
   
-  const [gateConfig, setGateConfig] = useState<TokenGateConfig>(DEFAULT_CONFIG)
-  const effectiveMinRequired = minRequired ?? gateConfig.minTokens
-  
-  const [state, setState] = useState<TokenGateState>({
-    isChecking: true,
-    hasAccess: true, // Default to true when gate is disabled
-    tokenBalance: 0,
-    requiredBalance: effectiveMinRequired,
-    shortfall: effectiveMinRequired,
-    tokenSymbol: token.symbol,
-    tokenMint: token.mint,
-    walletConnected: false,
-    error: null,
+  const [status, setStatus] = useState<TokenGateStatus>({
+    isLoading: true,
+    hasAccess: false,
     gateEnabled: false,
+    tokenMint: '',
+    tokenSymbol: '',
+    requiredAmount: 0,
+    currentBalance: 0,
+    message: '',
+    error: null,
   })
-
-  // Fetch token gate config from API
-  useEffect(() => {
-    const fetchGateConfig = async () => {
-      try {
-        const res = await fetch('/api/token-gate/config')
-        if (res.ok) {
-          const data = await res.json()
-          if (data.success) {
-            setGateConfig({
-              enabled: data.enabled ?? false,
-              minTokens: data.minTokens ?? DEFAULT_CONFIG.minTokens,
-            })
-          }
-        }
-      } catch (e) {
-        console.error('Failed to fetch token gate config:', e)
-      }
-    }
-    fetchGateConfig()
-  }, [])
-
-  const checkTokenBalance = useCallback(async () => {
-    // If gate is disabled, always grant access
-    if (!gateConfig.enabled) {
-      setState(prev => ({
-        ...prev,
-        isChecking: false,
+  
+  const checkAccess = useCallback(async () => {
+    // Get client-side config
+    const config = getTokenGateConfig()
+    
+    // If gate is disabled, grant access immediately
+    if (!config.enabled) {
+      setStatus({
+        isLoading: false,
         hasAccess: true,
-        walletConnected: connected,
         gateEnabled: false,
+        tokenMint: config.tokenMint,
+        tokenSymbol: config.tokenSymbol,
+        requiredAmount: config.minAmount,
+        currentBalance: 0,
+        message: 'Token gate is disabled',
         error: null,
-      }))
+      })
       return
     }
-
-    // Update wallet connection status
-    if (!connected || !publicKey) {
-      setState(prev => ({
-        ...prev,
-        isChecking: false,
+    
+    // If not authenticated or no main wallet, deny access
+    if (!isAuthenticated || !mainWallet?.public_key) {
+      setStatus({
+        isLoading: false,
         hasAccess: false,
-        walletConnected: false,
-        tokenBalance: 0,
-        shortfall: effectiveMinRequired,
-        gateEnabled: true,
+        gateEnabled: config.enabled,
+        tokenMint: config.tokenMint,
+        tokenSymbol: config.tokenSymbol,
+        requiredAmount: config.minAmount,
+        currentBalance: 0,
+        message: 'Connect your wallet to access the sniper',
         error: null,
-      }))
+      })
       return
     }
-
-    // Wait for token config
-    if (configLoading || !token.mint) {
-      setState(prev => ({
-        ...prev,
-        isChecking: true,
-        walletConnected: true,
-        gateEnabled: true,
-      }))
-      return
-    }
-
-    setState(prev => ({
-      ...prev,
-      isChecking: true,
-      walletConnected: true,
-      tokenSymbol: token.symbol,
-      tokenMint: token.mint,
-      gateEnabled: true,
-    }))
-
+    
     try {
-      const response = await fetch(
-        `/api/wallet/token-balance?wallet=${publicKey}&mint=${token.mint}`
-      )
+      // Call the server API to check balance
+      const response = await fetch(`/api/1st/token-gate/check?wallet=${mainWallet.public_key}`)
+      
+      if (!response.ok) {
+        throw new Error('Failed to check token gate')
+      }
       
       const result = await response.json()
-
+      
       if (result.success && result.data) {
-        const balance = result.data.uiBalance || 0
-        const hasAccess = balance >= effectiveMinRequired
-        const shortfall = Math.max(0, effectiveMinRequired - balance)
-
-        setState(prev => ({
-          ...prev,
-          isChecking: false,
-          hasAccess,
-          tokenBalance: balance,
-          shortfall,
-          requiredBalance: effectiveMinRequired,
-          gateEnabled: true,
+        setStatus({
+          isLoading: false,
+          hasAccess: result.data.hasAccess,
+          gateEnabled: result.data.gateEnabled,
+          tokenMint: result.data.tokenMint || config.tokenMint,
+          tokenSymbol: result.data.tokenSymbol || config.tokenSymbol,
+          requiredAmount: result.data.requiredAmount || config.minAmount,
+          currentBalance: result.data.currentBalance || 0,
+          message: result.data.message,
           error: null,
-        }))
+        })
       } else {
-        // If no balance found, user doesn't have access
-        setState(prev => ({
-          ...prev,
-          isChecking: false,
-          hasAccess: false,
-          tokenBalance: 0,
-          shortfall: effectiveMinRequired,
-          requiredBalance: effectiveMinRequired,
-          gateEnabled: true,
-          error: null,
-        }))
+        throw new Error(result.error || 'Unknown error')
       }
     } catch (error) {
-      console.error("Token gate check error:", error)
-      setState(prev => ({
+      console.error('[TOKEN-GATE] Check failed:', error)
+      setStatus(prev => ({
         ...prev,
-        isChecking: false,
+        isLoading: false,
         hasAccess: false,
-        gateEnabled: true,
-        error: error instanceof Error ? error.message : "Failed to check token balance",
+        error: error instanceof Error ? error.message : 'Failed to check access',
       }))
     }
-  }, [connected, publicKey, token.mint, token.symbol, effectiveMinRequired, configLoading, gateConfig.enabled])
-
-  useEffect(() => {
-    checkTokenBalance()
-  }, [checkTokenBalance, gateConfig])
-
-  // Also refresh periodically (every 30 seconds)
-  useEffect(() => {
-    if (!connected) return
-
-    const interval = setInterval(checkTokenBalance, 30000)
-    return () => clearInterval(interval)
-  }, [connected, checkTokenBalance])
-
-  const formatBalance = useCallback((amount: number): string => {
-    if (amount >= 1_000_000_000) {
-      return `${(amount / 1_000_000_000).toFixed(2)}B`
-    }
-    if (amount >= 1_000_000) {
-      return `${(amount / 1_000_000).toFixed(2)}M`
-    }
-    if (amount >= 1_000) {
-      return `${(amount / 1_000).toFixed(2)}K`
-    }
-    return amount.toLocaleString()
-  }, [])
-
-  return {
-    ...state,
-    refresh: checkTokenBalance,
-    formatBalance,
-  }
-}
-
-// Hook specifically for checking if user can access premium features
-export function usePremiumAccess() {
-  const gate = useTokenGate()
+  }, [isAuthenticated, mainWallet?.public_key])
   
-  return {
-    canAccess: gate.hasAccess,
-    isChecking: gate.isChecking,
-    walletConnected: gate.walletConnected,
-    balance: gate.tokenBalance,
-    required: gate.requiredBalance,
-    shortfall: gate.shortfall,
-    symbol: gate.tokenSymbol,
-    formatBalance: gate.formatBalance,
-  }
+  // Check on mount and when wallet changes
+  useEffect(() => {
+    checkAccess()
+  }, [checkAccess])
+  
+  // Re-check every 60 seconds while gate is enabled
+  useEffect(() => {
+    if (!status.gateEnabled) return
+    
+    const interval = setInterval(checkAccess, 60_000)
+    return () => clearInterval(interval)
+  }, [status.gateEnabled, checkAccess])
+  
+  return status
 }
-
-// Export constants
-export const TOKEN_GATE_REQUIREMENTS = {
-  KOL_MONITOR: 5_000_000,
-  TOKEN_AGGREGATOR: 5_000_000,
-  ADVANCED_ANALYTICS: 10_000_000,
-  COPY_TRADE: 25_000_000,
-} as const
-
