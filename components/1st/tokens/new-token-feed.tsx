@@ -8,7 +8,137 @@ import { GoldButton } from "../ui/gold-button"
 import { GoldBadge, PoolBadge, BlockBadge, TokenLogo } from "../ui/gold-badge"
 import { GoldToggle } from "../ui/gold-input"
 import { use1stSniper } from "@/hooks/use-1st-sniper"
-import { formatTimeAgo, formatUsd, type TargetPool } from "@/lib/1st/sniper-config"
+import { useLivePrice } from "@/hooks/use-live-price"
+import { formatTimeAgo, formatUsd, type TargetPool, type NewTokenEvent } from "@/lib/1st/sniper-config"
+
+// Individual token card with live data fetching
+function LiveTokenCard({ 
+  token, 
+  onClick 
+}: { 
+  token: NewTokenEvent
+  onClick: () => void 
+}) {
+  const [stats, setStats] = React.useState<{
+    liquidity: number
+    holders: number
+    bondingCurveProgress: number
+  } | null>(null)
+  
+  // Use the existing live price hook for market cap
+  const { marketCap, isLoading: priceLoading } = useLivePrice(token.tokenMint)
+  
+  // Fetch stats from existing backend API
+  React.useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(`/api/token/${token.tokenMint}/stats`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.data) {
+            setStats({
+              liquidity: data.data.liquidity || 0,
+              holders: data.data.holders || 0,
+              bondingCurveProgress: data.data.bondingCurveProgress || 0,
+            })
+          }
+        }
+      } catch (error) {
+        console.debug('[TOKEN-CARD] Stats fetch failed:', error)
+      }
+    }
+    
+    fetchStats()
+    // Poll every 10 seconds like existing components
+    const interval = setInterval(fetchStats, 10_000)
+    return () => clearInterval(interval)
+  }, [token.tokenMint])
+  
+  // Use live data if available, fallback to initial values
+  const displayLiquidity = stats?.liquidity || token.initialLiquidityUsd
+  const displayMarketCap = marketCap > 0 ? marketCap : token.initialMarketCap
+  
+  return (
+    <GoldCard
+      variant={token.passesFilters ? 'highlight' : 'default'}
+      className="cursor-pointer hover:scale-[1.02] transition-transform"
+      onClick={onClick}
+    >
+      <div className="flex items-start gap-3">
+        <TokenLogo 
+          src={token.tokenLogo || `https://dd.dexscreener.com/ds-data/tokens/solana/${token.tokenMint}.png`} 
+          symbol={token.tokenSymbol || '??'} 
+          size="lg" 
+        />
+        
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-bold text-white truncate">
+              ${token.tokenSymbol || 'UNKNOWN'}
+            </span>
+            {token.passesFilters && (
+              <GoldBadge variant="success" size="xs">✓</GoldBadge>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-2 mb-2">
+            <PoolBadge pool={token.pool} />
+            <BlockBadge block={token.creationBlock} />
+          </div>
+          
+          <p className="text-[10px] text-white/40 font-mono truncate">
+            {token.tokenMint}
+          </p>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-[#D4AF37]/10">
+        <div className="text-center">
+          <p className="text-[10px] text-white/40">Liquidity</p>
+          <p className="text-xs font-semibold text-[#D4AF37]">
+            {formatUsd(displayLiquidity)}
+          </p>
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] text-white/40">MC</p>
+          <p className="text-xs font-semibold text-white">
+            {priceLoading ? '...' : formatUsd(displayMarketCap)}
+          </p>
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] text-white/40">Age</p>
+          <p className="text-xs font-semibold text-white">
+            {formatTimeAgo(token.creationTimestamp)}
+          </p>
+        </div>
+      </div>
+      
+      <div className="flex gap-2 mt-3">
+        <GoldButton 
+          variant="primary" 
+          size="sm" 
+          className="flex-1"
+          onClick={(e) => {
+            e.stopPropagation()
+            onClick()
+          }}
+        >
+          TRADE
+        </GoldButton>
+        <GoldButton 
+          variant="ghost" 
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation()
+            window.open(`https://solscan.io/token/${token.tokenMint}`, '_blank')
+          }}
+        >
+          ↗
+        </GoldButton>
+      </div>
+    </GoldCard>
+  )
+}
 
 // Main Token Feed Component
 // Navigates to existing /token/[address] page which uses all existing backend APIs
@@ -97,86 +227,12 @@ export function NewTokenFeed() {
         </GoldCard>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredTokens.map((token, idx) => (
-            <GoldCard
-              key={`${token.tokenMint}-${idx}`}
-              variant={token.passesFilters ? 'highlight' : 'default'}
-              className="cursor-pointer hover:scale-[1.02] transition-transform"
+          {filteredTokens.map((token) => (
+            <LiveTokenCard
+              key={token.tokenMint}
+              token={token}
               onClick={() => handleTokenClick(token.tokenMint)}
-            >
-              <div className="flex items-start gap-3">
-                <TokenLogo 
-                  src={token.tokenLogo || `https://dd.dexscreener.com/ds-data/tokens/solana/${token.tokenMint}.png`} 
-                  symbol={token.tokenSymbol || '??'} 
-                  size="lg" 
-                />
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-bold text-white truncate">
-                      ${token.tokenSymbol || 'UNKNOWN'}
-                    </span>
-                    {token.passesFilters && (
-                      <GoldBadge variant="success" size="xs">✓</GoldBadge>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-2 mb-2">
-                    <PoolBadge pool={token.pool} />
-                    <BlockBadge block={token.creationBlock} />
-                  </div>
-                  
-                  <p className="text-[10px] text-white/40 font-mono truncate">
-                    {token.tokenMint}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-[#D4AF37]/10">
-                <div className="text-center">
-                  <p className="text-[10px] text-white/40">Liquidity</p>
-                  <p className="text-xs font-semibold text-[#D4AF37]">
-                    {formatUsd(token.initialLiquidityUsd)}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] text-white/40">MC</p>
-                  <p className="text-xs font-semibold text-white">
-                    {formatUsd(token.initialMarketCap)}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] text-white/40">Age</p>
-                  <p className="text-xs font-semibold text-white">
-                    {formatTimeAgo(token.creationTimestamp)}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex gap-2 mt-3">
-                <GoldButton 
-                  variant="primary" 
-                  size="sm" 
-                  className="flex-1"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleTokenClick(token.tokenMint)
-                  }}
-                >
-                  TRADE
-                </GoldButton>
-                <GoldButton 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    window.open(`https://solscan.io/token/${token.tokenMint}`, '_blank')
-                  }}
-                >
-                  ↗
-                </GoldButton>
-              </div>
-            </GoldCard>
+            />
           ))}
         </div>
       )}

@@ -293,10 +293,13 @@ export function use1stSniper() {
       // Parse stats response (liquidity, etc.)
       if (statsRes.ok) {
         const statsData = await statsRes.json()
-        if (statsData.success) {
-          liquidity = statsData.liquidity
-          // Calculate market cap from liquidity if available
-          marketCap = statsData.marketCap || (liquidity ? liquidity * 2 : 0)
+        if (statsData.success && statsData.data) {
+          liquidity = statsData.data.liquidity || 0
+          // Use bonding curve SOL value if no liquidity yet
+          if (!liquidity && statsData.data.bondingCurveSol) {
+            liquidity = statsData.data.bondingCurveSol * 150 // SOL price ~$150
+          }
+          marketCap = statsData.data.marketCap || (liquidity ? liquidity * 2 : 0)
         }
       }
       

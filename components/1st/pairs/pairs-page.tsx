@@ -8,6 +8,7 @@ import { GoldButton } from "../ui/gold-button"
 import { GoldToggle, GoldInput } from "../ui/gold-input"
 import { SwapPanel1st } from "../swap/swap-panel-1st"
 import { use1stSniper } from "@/hooks/use-1st-sniper"
+import { useLivePrice } from "@/hooks/use-live-price"
 import { formatUsd, formatTimeAgo, type TargetPool } from "@/lib/1st/sniper-config"
 
 // Pool configuration
@@ -115,6 +116,84 @@ function PoolCard({
   )
 }
 
+// Single row with live data fetching
+function LivePairRow({
+  pair,
+  onSelectPair,
+}: {
+  pair: {
+    tokenMint: string
+    tokenSymbol: string
+    tokenLogo?: string
+    pool: TargetPool
+    initialLiquidity: number
+    createdAt: number
+  }
+  onSelectPair: (mint: string, pool: TargetPool) => void
+}) {
+  const [stats, setStats] = React.useState<{ liquidity: number } | null>(null)
+  
+  // Fetch live stats from existing backend
+  React.useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(`/api/token/${pair.tokenMint}/stats`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.data) {
+            setStats({ liquidity: data.data.liquidity || 0 })
+          }
+        }
+      } catch (error) {
+        console.debug('[PAIR-ROW] Stats fetch failed:', error)
+      }
+    }
+    
+    fetchStats()
+    const interval = setInterval(fetchStats, 10_000)
+    return () => clearInterval(interval)
+  }, [pair.tokenMint])
+  
+  const displayLiquidity = stats?.liquidity || pair.initialLiquidity
+  
+  return (
+    <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+      <td className="py-3 pr-4">
+        <div className="flex items-center gap-2">
+          <TokenLogo 
+            src={pair.tokenLogo || `https://dd.dexscreener.com/ds-data/tokens/solana/${pair.tokenMint}.png`} 
+            symbol={pair.tokenSymbol} 
+            size="sm" 
+          />
+          <span className="font-semibold text-white">${pair.tokenSymbol}</span>
+        </div>
+      </td>
+      <td className="py-3 pr-4">
+        <PoolBadge pool={pair.pool} />
+      </td>
+      <td className="py-3 pr-4">
+        <span className="text-sm text-[#D4AF37] font-mono">
+          {formatUsd(displayLiquidity)}
+        </span>
+      </td>
+      <td className="py-3 pr-4">
+        <span className="text-sm text-white/50">
+          {formatTimeAgo(pair.createdAt)}
+        </span>
+      </td>
+      <td className="py-3">
+        <GoldButton 
+          variant="primary" 
+          size="sm"
+          onClick={() => onSelectPair(pair.tokenMint, pair.pool)}
+        >
+          TRADE
+        </GoldButton>
+      </td>
+    </tr>
+  )
+}
+
 // Recent Pairs Table
 function RecentPairsTable({ 
   pairs,
@@ -125,7 +204,7 @@ function RecentPairsTable({
     tokenSymbol: string
     tokenLogo?: string
     pool: TargetPool
-    liquidity: number
+    initialLiquidity: number
     createdAt: number
   }[]
   onSelectPair: (mint: string, pool: TargetPool) => void
@@ -151,44 +230,12 @@ function RecentPairsTable({
           </tr>
         </thead>
         <tbody>
-          {pairs.map((pair, idx) => (
-            <tr 
-              key={`${pair.tokenMint}-${idx}`}
-              className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-            >
-              <td className="py-3 pr-4">
-                <div className="flex items-center gap-2">
-                  <TokenLogo 
-                    src={pair.tokenLogo || `https://dd.dexscreener.com/ds-data/tokens/solana/${pair.tokenMint}.png`} 
-                    symbol={pair.tokenSymbol} 
-                    size="sm" 
-                  />
-                  <span className="font-semibold text-white">${pair.tokenSymbol}</span>
-                </div>
-              </td>
-              <td className="py-3 pr-4">
-                <PoolBadge pool={pair.pool} />
-              </td>
-              <td className="py-3 pr-4">
-                <span className="text-sm text-[#D4AF37] font-mono">
-                  {formatUsd(pair.liquidity)}
-                </span>
-              </td>
-              <td className="py-3 pr-4">
-                <span className="text-sm text-white/50">
-                  {formatTimeAgo(pair.createdAt)}
-                </span>
-              </td>
-              <td className="py-3">
-                <GoldButton 
-                  variant="primary" 
-                  size="sm"
-                  onClick={() => onSelectPair(pair.tokenMint, pair.pool)}
-                >
-                  TRADE
-                </GoldButton>
-              </td>
-            </tr>
+          {pairs.map((pair) => (
+            <LivePairRow
+              key={pair.tokenMint}
+              pair={pair}
+              onSelectPair={onSelectPair}
+            />
           ))}
         </tbody>
       </table>
@@ -229,7 +276,7 @@ export function PairsPage() {
       tokenSymbol: token.tokenSymbol || 'UNKNOWN',
       tokenLogo: token.tokenLogo || `https://dd.dexscreener.com/ds-data/tokens/solana/${token.tokenMint}.png`,
       pool: token.pool,
-      liquidity: token.initialLiquidityUsd,
+      initialLiquidity: token.initialLiquidityUsd,
       createdAt: token.creationTimestamp,
     }))
   }, [newTokens])
