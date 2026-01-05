@@ -525,8 +525,8 @@ export function parselaunchLabLog(logs: string[] | undefined | null): {
   ]
   
   for (const addr of allAddresses) {
-    if (!knownAddresses.includes(addr) && !tokenMint) {
-      // This could be the new token mint
+    // Only accept mints that end with "bonk" (case-insensitive)
+    if (!knownAddresses.includes(addr) && !tokenMint && addr.toLowerCase().endsWith('bonk')) {
       tokenMint = addr
     }
   }
@@ -614,7 +614,8 @@ export function parsePumpFunLog(logs: string[] | undefined | null): {
   ]
   
   for (const addr of allAddresses) {
-    if (!knownAddresses.includes(addr) && !tokenMint) {
+    // Only accept mints that end with "bonk" (case-insensitive)
+    if (!knownAddresses.includes(addr) && !tokenMint && addr.toLowerCase().endsWith('bonk')) {
       tokenMint = addr
     }
   }
