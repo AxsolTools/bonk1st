@@ -18,7 +18,30 @@ export default function FirstLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-[#000000] text-white">
+    <div 
+      className="min-h-screen bg-[#000000] text-white"
+      style={{
+        // Override CSS variables to use gold theme for existing components
+        // This makes TradePanel, TokenDashboard, etc. use gold colors
+        '--aqua-primary': '#D4AF37',
+        '--aqua-secondary': '#B8960F',
+        '--aqua-tertiary': '#8B7355',
+        '--aqua-glow': 'rgba(212, 175, 55, 0.5)',
+        '--aqua-bg': 'rgba(212, 175, 55, 0.08)',
+        '--aqua-border': 'rgba(212, 175, 55, 0.2)',
+        '--bg-primary': '#000000',
+        '--bg-secondary': '#0A0A0A',
+        '--bg-card': '#111111',
+        '--bg-card-hover': '#1A1A1A',
+        '--bg-elevated': '#161616',
+        '--bg-input': '#050505',
+        '--border-subtle': 'rgba(212, 175, 55, 0.1)',
+        '--border-default': 'rgba(212, 175, 55, 0.15)',
+        '--border-highlight': 'rgba(212, 175, 55, 0.25)',
+        '--primary': '#D4AF37',
+        '--ring': '#D4AF37',
+      } as React.CSSProperties}
+    >
       {/* Subtle grid background */}
       <div 
         className="fixed inset-0 pointer-events-none opacity-[0.02]"

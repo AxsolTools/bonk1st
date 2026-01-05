@@ -50,7 +50,7 @@ const createLog = (
 })
 
 // Debug mode - set to true to see all incoming WebSocket data
-const DEBUG_MODE = true
+const DEBUG_MODE = false
 
 /**
  * BONK1ST Sniper Hook
@@ -144,6 +144,48 @@ export function use1stSniper() {
     }
   }, [])
   
+  // Load detected tokens from Supabase on mount
+  useEffect(() => {
+    const loadDetectedTokens = async () => {
+      const effectiveSessionId = sessionId || userId
+      if (!effectiveSessionId) return
+      
+      try {
+        const response = await fetch(`/api/1st/detected-tokens?sessionId=${effectiveSessionId}&limit=100`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.data?.length > 0) {
+            setNewTokens(data.data)
+            addLog('info', `📥 Loaded ${data.data.length} previously detected tokens`)
+          }
+        }
+      } catch (error) {
+        console.error('[BONK1ST] Failed to load detected tokens:', error)
+      }
+    }
+    
+    loadDetectedTokens()
+  }, [sessionId, userId, addLog])
+  
+  // Save detected token to Supabase (persists across refreshes)
+  const saveDetectedToken = useCallback(async (token: NewTokenEvent) => {
+    const effectiveSessionId = sessionId || userId
+    if (!effectiveSessionId) return
+    
+    try {
+      await fetch('/api/1st/detected-tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: effectiveSessionId,
+          token,
+        }),
+      })
+    } catch (error) {
+      console.error('[BONK1ST] Failed to save detected token:', error)
+    }
+  }, [sessionId, userId])
+  
   // Save config to localStorage
   const setConfig = useCallback((updates: Partial<SniperConfig>) => {
     setConfigState(prev => {
@@ -160,7 +202,9 @@ export function use1stSniper() {
     }
   }, [history])
   
-  // Fetch token metadata
+  // Fetch token metadata from existing backend APIs
+  // Uses /api/token/[address]/metadata for symbol, name, logo (DexScreener CDN)
+  // Uses /api/token/[address]/stats for liquidity, marketCap
   const fetchTokenMetadata = useCallback(async (tokenMint: string): Promise<{
     symbol?: string
     name?: string
@@ -169,21 +213,71 @@ export function use1stSniper() {
     marketCap?: number
   }> => {
     try {
-      const response = await fetch(`/api/token/${tokenMint}/stats`)
-      if (response.ok) {
-        const data = await response.json()
-        return {
-          symbol: data.symbol,
-          name: data.name,
-          logo: data.logo,
-          liquidity: data.liquidity,
-          marketCap: data.marketCap,
+      // Fetch metadata and stats in parallel from existing backend
+      const [metadataRes, statsRes] = await Promise.all([
+        fetch(`/api/token/${tokenMint}/metadata`).catch(() => null),
+        fetch(`/api/token/${tokenMint}/stats`).catch(() => null),
+      ])
+      
+      let symbol: string | undefined
+      let name: string | undefined
+      let logo: string | undefined
+      let liquidity: number | undefined
+      let marketCap: number | undefined
+      
+      // Parse metadata response (symbol, name, logo from DexScreener CDN)
+      if (metadataRes?.ok) {
+        const metaData = await metadataRes.json()
+        if (metaData.success && metaData.data) {
+          symbol = metaData.data.symbol
+          name = metaData.data.name
+          logo = metaData.data.logoUri || `https://dd.dexscreener.com/ds-data/tokens/solana/${tokenMint}.png`
         }
       }
+      
+      // Parse stats response (liquidity, volume, holders)
+      if (statsRes?.ok) {
+        const statsData = await statsRes.json()
+        if (statsData.success && statsData.data) {
+          liquidity = statsData.data.liquidity || 0
+          // Estimate market cap from liquidity if not provided
+          marketCap = statsData.data.liquidity ? statsData.data.liquidity * 2 : 0
+        }
+      }
+      
+      // Fallback: Try DexScreener directly if metadata API failed
+      if (!symbol || !name) {
+        try {
+          const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`)
+          if (dexRes.ok) {
+            const dexData = await dexRes.json()
+            const pair = dexData.pairs?.[0]
+            if (pair?.baseToken) {
+              symbol = symbol || pair.baseToken.symbol
+              name = name || pair.baseToken.name
+              logo = logo || pair.info?.imageUrl || `https://dd.dexscreener.com/ds-data/tokens/solana/${tokenMint}.png`
+              liquidity = liquidity || pair.liquidity?.usd || 0
+              marketCap = marketCap || pair.marketCap || pair.fdv || 0
+            }
+          }
+        } catch (e) {
+          // DexScreener fallback failed, continue with what we have
+        }
+      }
+      
+      // Final fallback for logo - always use DexScreener CDN
+      if (!logo) {
+        logo = `https://dd.dexscreener.com/ds-data/tokens/solana/${tokenMint}.png`
+      }
+      
+      return { symbol, name, logo, liquidity, marketCap }
     } catch (error) {
       console.error('[BONK1ST] Failed to fetch token metadata:', error)
+      // Return DexScreener CDN logo as fallback
+      return { 
+        logo: `https://dd.dexscreener.com/ds-data/tokens/solana/${tokenMint}.png` 
+      }
     }
-    return {}
   }, [])
   
   // Handle LaunchLab logs (BONK/USD1 and BONK/SOL pools)
@@ -278,6 +372,9 @@ export function use1stSniper() {
       // Add to new tokens list (most recent first)
       setNewTokens(prev => [newToken, ...prev.slice(0, 99)])
       
+      // Save to Supabase for persistence across refreshes
+      saveDetectedToken(newToken)
+      
       addLog(
         'detection', 
         `🆕 NEW ${pool.toUpperCase()}: ${metadata.symbol || parsed.tokenMint.slice(0, 8)}...`, 
@@ -311,7 +408,7 @@ export function use1stSniper() {
     } catch (error) {
       console.error('[BONK1ST] Error parsing LaunchLab logs:', error)
     }
-  }, [addLog, fetchTokenMetadata])
+  }, [addLog, fetchTokenMetadata, saveDetectedToken])
   
   // Handle Pump.fun logs
   const handlePumpFunLogs = useCallback(async (data: unknown) => {
@@ -395,6 +492,9 @@ export function use1stSniper() {
       setStats(prev => ({ ...prev, tokensDetected: prev.tokensDetected + 1 }))
       setNewTokens(prev => [newToken, ...prev.slice(0, 99)])
       
+      // Save to Supabase for persistence across refreshes
+      saveDetectedToken(newToken)
+      
       addLog(
         'detection', 
         `🆕 NEW PUMP: ${metadata.symbol || parsed.tokenMint.slice(0, 8)}...`, 
@@ -419,7 +519,7 @@ export function use1stSniper() {
     } catch (error) {
       console.error('[BONK1ST] Error parsing Pump.fun logs:', error)
     }
-  }, [addLog, fetchTokenMetadata])
+  }, [addLog, fetchTokenMetadata, saveDetectedToken])
   
   // ALWAYS subscribe to LaunchLab (BONK pools) for real-time feed display
   // Sniping only happens when status === 'armed'
