@@ -401,22 +401,31 @@ export function use1stSniper() {
         filterResults: [],
       }
       
-      // Update stats
-      setStats(prev => ({ ...prev, tokensDetected: prev.tokensDetected + 1 }))
-      
-      // Add to new tokens list (most recent first)
-      setNewTokens(prev => [newToken, ...prev.slice(0, 99)])
-      
-      // Save to Supabase for persistence
-      saveTokenToSupabase(newToken)
-      
-      addLog(
-        'detection', 
-        `🆕 NEW ${pool.toUpperCase()}: ${metadata.symbol || parsed.tokenMint.slice(0, 8)}...`, 
-        { tokenMint: parsed.tokenMint, slot: logData.slot, pool }, 
-        parsed.tokenMint, 
-        logData.signature
-      )
+      // Check if token already exists (avoid duplicates)
+      setNewTokens(prev => {
+        const exists = prev.some(t => t.tokenMint === newToken.tokenMint)
+        if (exists) {
+          console.log(`[BONK1ST] Token ${parsed.tokenMint.slice(0,8)} already exists, skipping`)
+          return prev
+        }
+        
+        // Update stats
+        setStats(s => ({ ...s, tokensDetected: s.tokensDetected + 1 }))
+        
+        // Save to Supabase for persistence
+        saveTokenToSupabase(newToken)
+        
+        addLog(
+          'detection', 
+          `🆕 NEW ${pool.toUpperCase()}: ${metadata.symbol || parsed.tokenMint.slice(0, 8)}...`, 
+          { tokenMint: parsed.tokenMint, slot: logData.slot, pool }, 
+          parsed.tokenMint, 
+          logData.signature
+        )
+        
+        // Add to list (most recent first)
+        return [newToken, ...prev.slice(0, 99)]
+      })
       
       // Check if sniper is armed and should snipe
       if (configRef.current.enabled && statusRef.current === 'armed') {
@@ -524,33 +533,43 @@ export function use1stSniper() {
         filterResults: [],
       }
       
-      setStats(prev => ({ ...prev, tokensDetected: prev.tokensDetected + 1 }))
-      setNewTokens(prev => [newToken, ...prev.slice(0, 99)])
-      
-      // Save to Supabase for persistence
-      saveTokenToSupabase(newToken)
-      
-      addLog(
-        'detection', 
-        `🆕 NEW PUMP: ${metadata.symbol || parsed.tokenMint.slice(0, 8)}...`, 
-        { tokenMint: parsed.tokenMint, slot: logData.slot }, 
-        parsed.tokenMint, 
-        logData.signature
-      )
-      
-      // Check filters and snipe if enabled
-      if (configRef.current.enabled && statusRef.current === 'armed' && configRef.current.targetPools.includes('pump')) {
-        const filterResults = runFilters(newToken, configRef.current)
-        newToken.filterResults = filterResults
-        newToken.passesFilters = filterResults.every(f => f.passed)
-        
-        if (newToken.passesFilters) {
-          addLog('snipe', `✅ FILTERS PASSED! Initiating snipe...`, { tokenMint: parsed.tokenMint }, parsed.tokenMint)
-          executeSnipe(newToken)
-        } else {
-          setStats(prev => ({ ...prev, tokensFiltered: prev.tokensFiltered + 1 }))
+      // Check if token already exists (avoid duplicates)
+      setNewTokens(prev => {
+        const exists = prev.some(t => t.tokenMint === newToken.tokenMint)
+        if (exists) {
+          console.log(`[BONK1ST] Token ${parsed.tokenMint.slice(0,8)} already exists, skipping`)
+          return prev
         }
-      }
+        
+        setStats(s => ({ ...s, tokensDetected: s.tokensDetected + 1 }))
+        
+        // Save to Supabase for persistence
+        saveTokenToSupabase(newToken)
+        
+        addLog(
+          'detection', 
+          `🆕 NEW PUMP: ${metadata.symbol || parsed.tokenMint.slice(0, 8)}...`, 
+          { tokenMint: parsed.tokenMint, slot: logData.slot }, 
+          parsed.tokenMint, 
+          logData.signature
+        )
+        
+        // Check filters and snipe if enabled
+        if (configRef.current.enabled && statusRef.current === 'armed' && configRef.current.targetPools.includes('pump')) {
+          const filterResults = runFilters(newToken, configRef.current)
+          newToken.filterResults = filterResults
+          newToken.passesFilters = filterResults.every(f => f.passed)
+          
+          if (newToken.passesFilters) {
+            addLog('snipe', `✅ FILTERS PASSED! Initiating snipe...`, { tokenMint: parsed.tokenMint }, parsed.tokenMint)
+            executeSnipe(newToken)
+          } else {
+            setStats(s => ({ ...s, tokensFiltered: s.tokensFiltered + 1 }))
+          }
+        }
+        
+        return [newToken, ...prev.slice(0, 99)]
+      })
     } catch (error) {
       console.error('[BONK1ST] Error parsing Pump.fun logs:', error)
     }
