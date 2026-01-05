@@ -260,14 +260,16 @@ export function SniperDashboard() {
                         : "bg-[#0A0A0A] border-white/5 hover:border-white/20"
                     )}
                   >
-                    <div className="w-8 h-8 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/20 flex items-center justify-center text-[10px] font-bold text-[#D4AF37]">
-                      {token.tokenSymbol?.slice(0, 2) || '??'}
-                    </div>
+                    <TokenLogo 
+                      src={token.tokenLogo || undefined}
+                      symbol={token.tokenSymbol || '??'}
+                      size="sm"
+                    />
                     
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-white truncate">
-                          {token.tokenSymbol || token.tokenMint.slice(0, 8)}
+                          ${token.tokenSymbol || token.tokenMint.slice(0, 8)}
                         </span>
                         <PoolBadge pool={token.pool} />
                       </div>

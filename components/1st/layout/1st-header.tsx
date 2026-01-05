@@ -78,8 +78,9 @@ const navItems = [
 
 export function FirstHeader() {
   const pathname = usePathname()
-  const { isAuthenticated, activeWallet, wallets, setIsOnboarding } = useAuth()
+  const { isAuthenticated, activeWallet, wallets, setIsOnboarding, disconnect } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
+  const [showDisconnectMenu, setShowDisconnectMenu] = React.useState(false)
   
   const isActive = (href: string, exact?: boolean) => {
     if (exact) return pathname === href
@@ -89,6 +90,21 @@ export function FirstHeader() {
   const truncateAddress = (address: string) => {
     return `${address.slice(0, 4)}...${address.slice(-4)}`
   }
+  
+  // Close disconnect menu when clicking outside
+  React.useEffect(() => {
+    if (!showDisconnectMenu) return
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.disconnect-menu-container')) {
+        setShowDisconnectMenu(false)
+      }
+    }
+    
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [showDisconnectMenu])
   
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[#D4AF37]/10 bg-[#000000]/95 backdrop-blur-xl">
@@ -138,7 +154,7 @@ export function FirstHeader() {
             
             {/* Wallet */}
             {isAuthenticated && activeWallet ? (
-              <div className="flex items-center gap-2">
+              <div className="relative flex items-center gap-2 disconnect-menu-container">
                 <div className="hidden sm:block text-right">
                   <p className="text-xs text-white/50">
                     {wallets.length} wallet{wallets.length !== 1 ? 's' : ''}
@@ -147,11 +163,32 @@ export function FirstHeader() {
                     {truncateAddress(activeWallet.public_key)}
                   </p>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#D4AF37]/20 to-[#B8860B]/20 border border-[#D4AF37]/30 flex items-center justify-center">
+                <button
+                  onClick={() => setShowDisconnectMenu(!showDisconnectMenu)}
+                  className="w-8 h-8 rounded-full bg-gradient-to-br from-[#D4AF37]/20 to-[#B8860B]/20 border border-[#D4AF37]/30 flex items-center justify-center hover:border-[#D4AF37]/50 transition-colors"
+                >
                   <span className="text-[10px] font-bold text-[#D4AF37]">
                     {activeWallet.public_key.slice(0, 2).toUpperCase()}
                   </span>
-                </div>
+                </button>
+                
+                {/* Disconnect Dropdown */}
+                {showDisconnectMenu && (
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-[#0A0A0A] border border-[#D4AF37]/30 rounded-lg shadow-xl z-50 overflow-hidden">
+                    <button
+                      onClick={() => {
+                        disconnect()
+                        setShowDisconnectMenu(false)
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm text-white hover:bg-[#D4AF37]/10 transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Disconnect Wallet
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <GoldButton 
