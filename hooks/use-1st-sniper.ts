@@ -50,7 +50,7 @@ const createLog = (
 })
 
 // Debug mode - set to true to see all incoming WebSocket data
-const DEBUG_MODE = true
+const DEBUG_MODE = false
 
 /**
  * BONK1ST Sniper Hook
@@ -160,7 +160,9 @@ export function use1stSniper() {
     }
   }, [history])
   
-  // Fetch token metadata
+  // Fetch token metadata from existing backend APIs
+  // /api/token/[address]/metadata - for symbol, name, logo (uses Helius DAS + DexScreener)
+  // /api/token/[address]/stats - for liquidity, holders, etc.
   const fetchTokenMetadata = useCallback(async (tokenMint: string): Promise<{
     symbol?: string
     name?: string
@@ -169,21 +171,51 @@ export function use1stSniper() {
     marketCap?: number
   }> => {
     try {
-      const response = await fetch(`/api/token/${tokenMint}/stats`)
-      if (response.ok) {
-        const data = await response.json()
-        return {
-          symbol: data.symbol,
-          name: data.name,
-          logo: data.logo,
-          liquidity: data.liquidity,
-          marketCap: data.marketCap,
+      // Fetch metadata and stats in parallel from existing backend
+      const [metadataRes, statsRes] = await Promise.all([
+        fetch(`/api/token/${tokenMint}/metadata`),
+        fetch(`/api/token/${tokenMint}/stats`),
+      ])
+      
+      let symbol: string | undefined
+      let name: string | undefined
+      let logo: string | undefined
+      let liquidity: number | undefined
+      let marketCap: number | undefined
+      
+      // Parse metadata response (symbol, name, logo)
+      if (metadataRes.ok) {
+        const metaData = await metadataRes.json()
+        if (metaData.success && metaData.data) {
+          symbol = metaData.data.symbol
+          name = metaData.data.name
+          logo = metaData.data.logo || metaData.data.image
         }
       }
+      
+      // Parse stats response (liquidity, etc.)
+      if (statsRes.ok) {
+        const statsData = await statsRes.json()
+        if (statsData.success) {
+          liquidity = statsData.liquidity
+          // Calculate market cap from liquidity if available
+          marketCap = statsData.marketCap || (liquidity ? liquidity * 2 : 0)
+        }
+      }
+      
+      // Fallback to DexScreener CDN for logo if not found
+      if (!logo) {
+        logo = `https://dd.dexscreener.com/ds-data/tokens/solana/${tokenMint}.png`
+      }
+      
+      return { symbol, name, logo, liquidity, marketCap }
     } catch (error) {
       console.error('[BONK1ST] Failed to fetch token metadata:', error)
+      // Return DexScreener CDN logo as fallback
+      return {
+        logo: `https://dd.dexscreener.com/ds-data/tokens/solana/${tokenMint}.png`
+      }
     }
-    return {}
   }, [])
   
   // Handle LaunchLab logs (BONK/USD1 and BONK/SOL pools)
