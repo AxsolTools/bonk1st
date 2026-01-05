@@ -189,24 +189,49 @@ export function use1stSniper() {
   // Handle LaunchLab logs (BONK/USD1 and BONK/SOL pools)
   const handleLaunchLabLogs = useCallback(async (data: unknown) => {
     try {
-      const logData = data as { signature: string; logs: string[]; slot: number; err?: unknown }
+      // Helius WebSocket returns data in nested format: { value: { signature, logs, slot, err } }
+      // or directly as { signature, logs, slot, err }
+      const rawData = data as Record<string, unknown>
+      const logData = (rawData.value || rawData) as { 
+        signature?: string
+        logs?: string[]
+        slot?: number
+        err?: unknown 
+      }
       
-      // Skip failed transactions
-      // DEBUG: Log ALL incoming data
+      // Extract logs array - handle various Helius response formats
+      const logs = logData.logs || 
+                   (rawData as { result?: { value?: { logs?: string[] } } }).result?.value?.logs ||
+                   []
+      
+      const signature = logData.signature || 
+                        (rawData as { result?: { value?: { signature?: string } } }).result?.value?.signature ||
+                        ''
+      
+      const slot = logData.slot || 
+                   (rawData as { result?: { context?: { slot?: number } } }).result?.context?.slot ||
+                   0
+      
+      // Skip if no logs
+      if (!logs || logs.length === 0) {
+        return
+      }
+      
+      // DEBUG: Log incoming data (redacted)
       if (DEBUG_MODE) {
         console.log('[BONK1ST DEBUG] LaunchLab log received:', {
-          signature: logData.signature,
-          slot: logData.slot,
-          err: logData.err,
-          logsCount: logData.logs?.length,
-          firstLogs: logData.logs?.slice(0, 5),
+          signature: signature ? `${signature.slice(0, 8)}...` : 'none',
+          slot,
+          logsCount: logs.length,
+          firstLog: logs[0]?.slice(0, 50),
         })
       }
       
+      // Skip failed transactions
       if (logData.err) return
       
       // Parse the logs to detect new pool creation
-      const parsed = parselaunchLabLog(logData.logs)
+      const parsed = parselaunchLabLog(logs)
       
       // DEBUG: Log parsing result
       if (DEBUG_MODE) {
@@ -291,16 +316,39 @@ export function use1stSniper() {
   // Handle Pump.fun logs
   const handlePumpFunLogs = useCallback(async (data: unknown) => {
     try {
-      const logData = data as { signature: string; logs: string[]; slot: number; err?: unknown }
+      // Helius WebSocket returns data in nested format
+      const rawData = data as Record<string, unknown>
+      const logData = (rawData.value || rawData) as { 
+        signature?: string
+        logs?: string[]
+        slot?: number
+        err?: unknown 
+      }
       
-      // DEBUG: Log ALL incoming data
+      // Extract logs array - handle various Helius response formats
+      const logs = logData.logs || 
+                   (rawData as { result?: { value?: { logs?: string[] } } }).result?.value?.logs ||
+                   []
+      
+      const signature = logData.signature || 
+                        (rawData as { result?: { value?: { signature?: string } } }).result?.value?.signature ||
+                        ''
+      
+      const slot = logData.slot || 
+                   (rawData as { result?: { context?: { slot?: number } } }).result?.context?.slot ||
+                   0
+      
+      // Skip if no logs
+      if (!logs || logs.length === 0) {
+        return
+      }
+      
+      // DEBUG: Log incoming data (redacted)
       if (DEBUG_MODE) {
         console.log('[BONK1ST DEBUG] Pump.fun log received:', {
-          signature: logData.signature,
-          slot: logData.slot,
-          err: logData.err,
-          logsCount: logData.logs?.length,
-          firstLogs: logData.logs?.slice(0, 5),
+          signature: signature ? `${signature.slice(0, 8)}...` : 'none',
+          slot,
+          logsCount: logs.length,
         })
       }
       
@@ -308,7 +356,7 @@ export function use1stSniper() {
       if (logData.err) return
       
       // Parse the logs
-      const parsed = parsePumpFunLog(logData.logs)
+      const parsed = parsePumpFunLog(logs)
       
       // DEBUG: Log parsing result
       if (DEBUG_MODE) {
@@ -398,13 +446,15 @@ export function use1stSniper() {
       return
     }
     
-    addLog('info', `🔑 Helius API key detected: ${apiKey.slice(0, 8)}...`)
+    // NEVER expose API keys in logs - just confirm it exists
+    addLog('info', '🔑 Helius API configured ✓')
+    addLog('info', '🌐 WebSocket connection initializing...')
     
     if (monitorBonkPools) {
-      addLog('info', `📡 Monitoring LaunchLab (BONK): ${SNIPER_PROGRAMS.RAYDIUM_LAUNCHLAB.slice(0, 8)}...`)
+      addLog('info', '📡 Monitoring: Raydium LaunchLab (bonk.fun pools)')
     }
     if (monitorPump) {
-      addLog('info', `📡 Monitoring Pump.fun: ${SNIPER_PROGRAMS.PUMP_FUN.slice(0, 8)}...`)
+      addLog('info', '📡 Monitoring: Pump.fun')
     }
   }, [monitorBonkPools, monitorPump, addLog])
   

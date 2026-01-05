@@ -238,7 +238,7 @@ export function PairsPage() {
   }
   
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6">
+    <div className="w-full max-w-[1920px] mx-auto px-4 lg:px-8 py-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
         <div>

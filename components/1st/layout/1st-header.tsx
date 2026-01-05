@@ -92,7 +92,7 @@ export function FirstHeader() {
   
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[#D4AF37]/10 bg-[#000000]/95 backdrop-blur-xl">
-      <div className="container mx-auto px-4">
+      <div className="w-full max-w-[1920px] mx-auto px-4 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo & Brand */}
           <div className="flex items-center gap-4">
@@ -234,7 +234,7 @@ export function FirstFooter() {
   
   return (
     <footer className="fixed bottom-0 left-0 right-0 z-40 h-8 bg-[#000000] border-t border-[#D4AF37]/10">
-      <div className="container mx-auto px-4 h-full">
+      <div className="w-full max-w-[1920px] mx-auto px-4 lg:px-8 h-full">
         <div className="flex items-center justify-between h-full text-[10px] font-mono">
           {/* Left - Connection Status */}
           <div className="flex items-center gap-4">

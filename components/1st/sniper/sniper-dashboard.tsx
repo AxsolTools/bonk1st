@@ -40,7 +40,7 @@ export function SniperDashboard() {
     : 0
   
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6">
+    <div className="w-full max-w-[1920px] mx-auto px-4 lg:px-8 py-6 space-y-6">
       {/* API Key Warning */}
       {!hasHeliusKey && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-center gap-3">

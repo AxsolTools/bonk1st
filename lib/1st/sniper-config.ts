@@ -463,7 +463,7 @@ export function formatTimeAgo(timestamp: number): string {
  * LaunchLab creates pools with initialize/initialize_v2 instructions
  * Log patterns vary but typically include the mint address
  */
-export function parselaunchLabLog(logs: string[]): { 
+export function parselaunchLabLog(logs: string[] | undefined | null): { 
   isNewPool: boolean
   tokenMint: string | null
   quoteMint: string | null
@@ -473,6 +473,11 @@ export function parselaunchLabLog(logs: string[]): {
   let tokenMint: string | null = null
   let quoteMint: string | null = null
   let creator: string | null = null
+  
+  // Handle undefined/null logs
+  if (!logs || !Array.isArray(logs) || logs.length === 0) {
+    return { isNewPool, tokenMint, quoteMint, creator }
+  }
   
   const fullLog = logs.join(' ')
   
@@ -555,7 +560,7 @@ export function parselaunchLabLog(logs: string[]): {
 /**
  * Parse Pump.fun log to detect new token creation
  */
-export function parsePumpFunLog(logs: string[]): {
+export function parsePumpFunLog(logs: string[] | undefined | null): {
   isNewToken: boolean
   tokenMint: string | null
   creator: string | null
@@ -563,6 +568,11 @@ export function parsePumpFunLog(logs: string[]): {
   let isNewToken = false
   let tokenMint: string | null = null
   let creator: string | null = null
+  
+  // Handle undefined/null logs
+  if (!logs || !Array.isArray(logs) || logs.length === 0) {
+    return { isNewToken, tokenMint, creator }
+  }
   
   const fullLog = logs.join(' ')
   
