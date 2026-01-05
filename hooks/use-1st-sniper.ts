@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/components/providers/auth-provider'
 import { useLogsSubscription, useHeliusWebSocketState } from '@/hooks/use-helius-websocket'
+import { createClient } from '@/lib/supabase/client'
 import type { 
   SniperConfig, 
   SniperStatus, 
@@ -161,29 +162,100 @@ export function use1stSniper() {
     }
   }, [history])
   
-  // Load detected tokens from localStorage
+  // Load detected tokens from Supabase on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.NEW_TOKENS)
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        // Filter out tokens older than 24 hours
-        const recentTokens = parsed.filter((t: NewTokenEvent) => 
-          Date.now() - t.creationTimestamp < 24 * 60 * 60 * 1000
-        )
-        setNewTokens(recentTokens)
+    const loadTokensFromSupabase = async () => {
+      try {
+        const supabase = createClient()
+        
+        // Get tokens from last 24 hours, ordered by newest first
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+        
+        const { data, error } = await supabase
+          .from('sniper_detected_tokens')
+          .select('*')
+          .gte('creation_timestamp', twentyFourHoursAgo)
+          .order('creation_timestamp', { ascending: false })
+          .limit(50)
+        
+        if (error) {
+          console.error('[BONK1ST] Failed to load tokens from Supabase:', error)
+          return
+        }
+        
+        if (data && data.length > 0) {
+          // Convert Supabase format to NewTokenEvent format
+          const tokens: NewTokenEvent[] = data.map(row => ({
+            tokenMint: row.token_mint,
+            tokenSymbol: row.token_symbol || undefined,
+            tokenName: row.token_name || undefined,
+            tokenLogo: row.token_logo || undefined,
+            pool: row.pool as TargetPool,
+            quoteMint: row.quote_mint || '',
+            creationBlock: row.creation_block || 0,
+            creationTimestamp: new Date(row.creation_timestamp).getTime(),
+            creationTxSignature: row.creation_tx_signature || '',
+            creatorWallet: row.creator_wallet || '',
+            initialLiquidityUsd: Number(row.initial_liquidity_usd) || 0,
+            initialMarketCap: Number(row.initial_market_cap) || 0,
+            hasWebsite: row.has_website || false,
+            hasTwitter: row.has_twitter || false,
+            hasTelegram: row.has_telegram || false,
+            passesFilters: row.passes_filters || false,
+            filterResults: row.filter_results || [],
+          }))
+          
+          setNewTokens(tokens)
+          console.log(`[BONK1ST] Loaded ${tokens.length} tokens from Supabase`)
+        }
+      } catch (error) {
+        console.error('[BONK1ST] Error loading tokens:', error)
       }
-    } catch (error) {
-      console.error('[BONK1ST] Failed to load detected tokens:', error)
     }
+    
+    loadTokensFromSupabase()
   }, [])
   
-  // Save detected tokens to localStorage
-  useEffect(() => {
-    if (newTokens.length > 0) {
-      localStorage.setItem(STORAGE_KEYS.NEW_TOKENS, JSON.stringify(newTokens.slice(-50))) // Keep last 50
+  // Save a new token to Supabase
+  const saveTokenToSupabase = useCallback(async (token: NewTokenEvent) => {
+    try {
+      const supabase = createClient()
+      
+      const { error } = await supabase
+        .from('sniper_detected_tokens')
+        .upsert({
+          token_mint: token.tokenMint,
+          token_symbol: token.tokenSymbol || null,
+          token_name: token.tokenName || null,
+          token_logo: token.tokenLogo || null,
+          pool: token.pool,
+          quote_mint: token.quoteMint || null,
+          creation_block: token.creationBlock,
+          creation_timestamp: new Date(token.creationTimestamp).toISOString(),
+          creation_tx_signature: token.creationTxSignature || null,
+          creator_wallet: token.creatorWallet || null,
+          initial_liquidity_usd: token.initialLiquidityUsd,
+          initial_market_cap: token.initialMarketCap,
+          has_website: token.hasWebsite,
+          has_twitter: token.hasTwitter,
+          has_telegram: token.hasTelegram,
+          passes_filters: token.passesFilters,
+          filter_results: token.filterResults,
+          session_id: userId || null,
+        }, {
+          onConflict: 'token_mint,session_id',
+          ignoreDuplicates: true,
+        })
+      
+      if (error) {
+        console.error('[BONK1ST] Failed to save token to Supabase:', error)
+      } else {
+        console.log(`[BONK1ST] Saved token ${token.tokenSymbol || token.tokenMint.slice(0,8)} to Supabase`)
+      }
+    } catch (error) {
+      console.error('[BONK1ST] Error saving token:', error)
     }
-  }, [newTokens])
+  }, [userId])
   
   // Fetch token metadata from existing backend APIs
   // /api/token/[address]/metadata - for symbol, name, logo (uses Helius DAS + DexScreener)
@@ -335,6 +407,9 @@ export function use1stSniper() {
       // Add to new tokens list (most recent first)
       setNewTokens(prev => [newToken, ...prev.slice(0, 99)])
       
+      // Save to Supabase for persistence
+      saveTokenToSupabase(newToken)
+      
       addLog(
         'detection', 
         `🆕 NEW ${pool.toUpperCase()}: ${metadata.symbol || parsed.tokenMint.slice(0, 8)}...`, 
@@ -451,6 +526,9 @@ export function use1stSniper() {
       
       setStats(prev => ({ ...prev, tokensDetected: prev.tokensDetected + 1 }))
       setNewTokens(prev => [newToken, ...prev.slice(0, 99)])
+      
+      // Save to Supabase for persistence
+      saveTokenToSupabase(newToken)
       
       addLog(
         'detection', 
