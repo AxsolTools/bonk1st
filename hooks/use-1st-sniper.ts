@@ -52,6 +52,81 @@ const createLog = (
 // Debug mode - set to true to see all incoming WebSocket data
 const DEBUG_MODE = false
 
+// System addresses that should NEVER be treated as token mints
+// These are Solana programs and system accounts, not tradeable tokens
+const INVALID_TOKEN_ADDRESSES = new Set([
+  // Compute Budget Program - This is causing the spam
+  'ComputeBudget111111111111111111111111111111',
+  // System Program
+  '11111111111111111111111111111111',
+  // SPL Token Programs
+  'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+  'TokenkegQfeZyiNwAJbNY5vgNBH4DQ3TonLk17nRba62L',
+  'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
+  // Associated Token Program
+  'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
+  // Metaplex
+  'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s',
+  // System vars
+  'SysvarRent111111111111111111111111111111111',
+  'SysvarC1ock11111111111111111111111111111111',
+  'SysvarS1otHashes111111111111111111111111111',
+  'SysvarRecentB1ockHashes11111111111111111111',
+  'SysvarInstructions1111111111111111111111111',
+  // Stake/Vote
+  'Stake11111111111111111111111111111111111111',
+  'Vote111111111111111111111111111111111111111',
+  'Config1111111111111111111111111111111111111',
+  // BPF Loaders
+  'BPFLoader2111111111111111111111111111111111',
+  'BPFLoaderUpgradeab1e11111111111111111111111',
+  'NativeLoader1111111111111111111111111111111',
+  // Raydium
+  'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS',
+  '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8',
+  '5quBtoiQqxF9Jv6KYKctB59NT3gtJD2Y65kdnB1Uev3h',
+  '27haf8L6oxUeXrHrgEgsexjSY5hbVUWEmvv9Nyxg8vQv',
+  'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK',
+  // LaunchLab
+  'LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj',
+  // Pump.fun
+  '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P',
+  // Jupiter
+  'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4',
+  'JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB',
+  // Flash loan
+  'FLASHX8DrLbgeR8FcfNV1F5krxYcYMUdBkrP1EPBtxB9',
+  'FL1Xhi3FakNPUgKwn2EPkf1Bqg3YPXAE8NwBCfkF6d7o',
+  // Memo
+  'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
+  'Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo',
+  // Quote tokens (not tradeable as new tokens)
+  'USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB',
+  'So11111111111111111111111111111111111111112',
+  // BONK platform
+  '8pCtbn9iatQ8493mDQax4xfEUjhoVBpUWYVQoRU18333',
+  // Serum/OpenBook
+  'srmqPvymJeFKQ4zGQed1GFppgkRHL9kaELCbyksJtPX',
+  '9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin',
+])
+
+// Helper to validate if an address is a valid token mint
+const isValidTokenMint = (address: string | null | undefined): boolean => {
+  if (!address) return false
+  if (address.length < 32 || address.length > 44) return false
+  if (INVALID_TOKEN_ADDRESSES.has(address)) return false
+  // Reject addresses that look like program IDs (lots of 1s)
+  if (address.includes('11111111111')) return false
+  // Reject addresses that start with known program prefixes
+  if (address.startsWith('ComputeBudget')) return false
+  if (address.startsWith('Token')) return false
+  if (address.startsWith('Sysvar')) return false
+  if (address.startsWith('BPF')) return false
+  if (address.startsWith('Native')) return false
+  if (address.startsWith('FLASH')) return false
+  return true
+}
+
 /**
  * BONK1ST Sniper Hook
  * 
@@ -332,7 +407,11 @@ export function use1stSniper() {
         console.log('[BONK1ST DEBUG] LaunchLab parse result:', parsed)
       }
       
-      if (!parsed.isNewPool || !parsed.tokenMint) {
+      // CRITICAL: Validate that we have a real token mint, not a system address
+      if (!parsed.isNewPool || !parsed.tokenMint || !isValidTokenMint(parsed.tokenMint)) {
+        if (DEBUG_MODE && parsed.tokenMint) {
+          console.log('[BONK1ST DEBUG] Rejected invalid token mint:', parsed.tokenMint)
+        }
         return
       }
       
@@ -460,7 +539,11 @@ export function use1stSniper() {
         console.log('[BONK1ST DEBUG] Pump.fun parse result:', parsed)
       }
       
-      if (!parsed.isNewToken || !parsed.tokenMint) {
+      // CRITICAL: Validate that we have a real token mint, not a system address
+      if (!parsed.isNewToken || !parsed.tokenMint || !isValidTokenMint(parsed.tokenMint)) {
+        if (DEBUG_MODE && parsed.tokenMint) {
+          console.log('[BONK1ST DEBUG] Rejected invalid token mint:', parsed.tokenMint)
+        }
         return
       }
       
