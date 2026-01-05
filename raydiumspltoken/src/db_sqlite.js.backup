@@ -1,0 +1,670 @@
+/**
+ * Database Module
+ * Handles SQLite database operations for user isolation and data persistence
+ */
+
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+const fs = require('fs');
+
+// Database path
+const DB_PATH = path.join(__dirname, '..', 'data', 'bot.db');
+
+// Ensure data directory exists
+const DATA_DIR = path.dirname(DB_PATH);
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// Initialize database connection
+const db = new sqlite3.Database(DB_PATH);
+
+// Enable foreign keys
+db.run('PRAGMA foreign_keys = ON');
+
+/**
+ * Initialize database schema
+ */
+function initializeDatabase() {
+  // Users table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      telegram_id INTEGER UNIQUE NOT NULL,
+      telegram_username TEXT,
+      active_wallet_id INTEGER,
+      active_token_mint TEXT,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (active_wallet_id) REFERENCES wallets(wallet_id) ON DELETE SET NULL
+    )
+  `);
+
+  // Wallets table - stores file path to unencrypted wallet data
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS wallets (
+      wallet_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      wallet_address TEXT UNIQUE NOT NULL,
+      file_path TEXT NOT NULL,
+      wallet_name TEXT,
+      wallet_type TEXT NOT NULL CHECK(wallet_type IN ('generated', 'imported')),
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    )
+  `);
+
+  // Tokens table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tokens (
+      token_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      mint_address TEXT UNIQUE NOT NULL,
+      token_name TEXT NOT NULL,
+      token_symbol TEXT NOT NULL,
+      decimals INTEGER NOT NULL,
+      total_supply TEXT,
+      metadata_uri TEXT,
+      platform TEXT CHECK(platform IN ('raydium', 'pumpfun', 'standard')),
+      state TEXT DEFAULT 'created' CHECK(state IN ('created', 'bonding_curve', 'raydium_pool', 'migrated')),
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    )
+  `);
+
+  // Pools table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pools (
+      pool_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token_id INTEGER NOT NULL,
+      pool_address TEXT UNIQUE NOT NULL,
+      platform TEXT NOT NULL CHECK(platform IN ('raydium', 'pumpfun')),
+      lp_token_mint TEXT,
+      initial_token_amount TEXT,
+      initial_quote_amount TEXT,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (token_id) REFERENCES tokens(token_id) ON DELETE CASCADE
+    )
+  `);
+
+  // Transactions table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      tx_hash TEXT UNIQUE NOT NULL,
+      tx_type TEXT NOT NULL,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'confirmed', 'failed')),
+      error_message TEXT,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      confirmed_at INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    )
+  `);
+
+  // User states table for FSM
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_states (
+      state_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER UNIQUE NOT NULL,
+      current_state TEXT,
+      state_data TEXT,
+      updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    )
+  `);
+
+  // Settings table for user preferences
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_settings (
+      setting_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER UNIQUE NOT NULL,
+      priority_fee_level TEXT DEFAULT 'medium' CHECK(priority_fee_level IN ('high', 'medium', 'low', 'custom')),
+      custom_priority_fee INTEGER,
+      slippage_tolerance INTEGER DEFAULT 100,
+      FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    )
+  `);
+
+  // Smart Profit settings table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS smart_profit_settings (
+      setting_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER UNIQUE NOT NULL,
+      enabled INTEGER DEFAULT 0,
+      token_mint TEXT,
+      profit_threshold_percent REAL DEFAULT 50.0,
+      large_buy_sol_trigger REAL DEFAULT 5.0,
+      large_sell_sol_trigger REAL DEFAULT 2.0,
+      profit_strategy TEXT DEFAULT 'full' CHECK(profit_strategy IN ('full', 'partial', 'trailing')),
+      partial_sell_percent REAL DEFAULT 50.0,
+      trailing_stop_percent REAL DEFAULT 10.0,
+      buy_amount_sol REAL DEFAULT 0.1,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    )
+  `);
+
+  // Wallet groups table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS wallet_groups (
+      group_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      group_name TEXT NOT NULL,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    )
+  `);
+
+  // Wallet group members (many-to-many)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS wallet_group_members (
+      member_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id INTEGER NOT NULL,
+      wallet_id INTEGER NOT NULL,
+      FOREIGN KEY (group_id) REFERENCES wallet_groups(group_id) ON DELETE CASCADE,
+      FOREIGN KEY (wallet_id) REFERENCES wallets(wallet_id) ON DELETE CASCADE,
+      UNIQUE(group_id, wallet_id)
+    )
+  `);
+
+  // Create indexes for performance
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets(user_id);
+    CREATE INDEX IF NOT EXISTS idx_tokens_user_id ON tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_tokens_mint ON tokens(mint_address);
+    CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
+    CREATE INDEX IF NOT EXISTS idx_wallet_groups_user_id ON wallet_groups(user_id);
+    CREATE INDEX IF NOT EXISTS idx_wallet_group_members_group ON wallet_group_members(group_id);
+  `);
+
+  console.log('✅ Database schema initialized successfully');
+}
+
+// ============================================================================
+// USER OPERATIONS
+// ============================================================================
+
+/**
+ * Create or get user by Telegram ID
+ * @param {number} telegramId - Telegram user ID
+ * @param {string} username - Telegram username
+ * @returns {object} User record
+ */
+function createOrGetUser(telegramId, username = null) {
+  try {
+    // Try to get existing user
+    let user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
+    
+    if (!user) {
+      // Create new user
+      const result = db.prepare('INSERT INTO users (telegram_id, telegram_username) VALUES (?, ?)').run(telegramId, username);
+      user = db.prepare('SELECT * FROM users WHERE user_id = ?').get(result.lastInsertRowid);
+      
+      // Create default settings
+      db.prepare('INSERT INTO user_settings (user_id) VALUES (?)').run(user.user_id);
+    } else if (username && user.telegram_username !== username) {
+      // Update username if changed
+      db.prepare('UPDATE users SET telegram_username = ? WHERE user_id = ?').run(username, user.user_id);
+      user.telegram_username = username;
+    }
+    
+    return user;
+  } catch (error) {
+    console.error('Error in createOrGetUser:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get user by Telegram ID
+ * @param {number} telegramId - Telegram user ID
+ * @returns {object|null} User record
+ */
+function getUserByTelegramId(telegramId) {
+  return db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
+}
+
+/**
+ * Set active wallet for user
+ * @param {number} userId - User ID
+ * @param {number} walletId - Wallet ID
+ */
+function setActiveWallet(userId, walletId) {
+  db.prepare('UPDATE users SET active_wallet_id = ? WHERE user_id = ?').run(walletId, userId);
+}
+
+/**
+ * Set active token for user
+ * @param {number} userId - User ID
+ * @param {string} tokenMint - Token mint address
+ */
+function setActiveToken(userId, tokenMint) {
+  db.prepare('UPDATE users SET active_token_mint = ? WHERE user_id = ?').run(tokenMint, userId);
+}
+
+// ============================================================================
+// WALLET OPERATIONS
+// ============================================================================
+
+/**
+ * Save wallet to database
+ * @param {number} userId - User ID
+ * @param {string} address - Wallet address
+ * @param {string} filePath - Path to JSON file containing wallet data
+ * @param {string} walletType - 'generated' or 'imported'
+ * @param {string} walletName - Optional wallet name
+ * @returns {object} Wallet record
+ */
+function saveWallet(userId, address, filePath, walletType, walletName = null) {
+  const result = db.prepare(
+    'INSERT INTO wallets (user_id, wallet_address, file_path, wallet_type, wallet_name) VALUES (?, ?, ?, ?, ?)'
+  ).run(userId, address, filePath, walletType, walletName);
+  
+  return db.prepare('SELECT * FROM wallets WHERE wallet_id = ?').get(result.lastInsertRowid);
+}
+
+/**
+ * Get all wallets for a user
+ * @param {number} userId - User ID
+ * @returns {array} Array of wallet records
+ */
+function getUserWallets(userId) {
+  return db.prepare('SELECT * FROM wallets WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+}
+
+/**
+ * Get wallet by ID
+ * @param {number} walletId - Wallet ID
+ * @returns {object|null} Wallet record
+ */
+function getWalletById(walletId) {
+  return db.prepare('SELECT * FROM wallets WHERE wallet_id = ?').get(walletId);
+}
+
+/**
+ * Get wallet by address
+ * @param {string} address - Wallet address
+ * @returns {object|null} Wallet record
+ */
+function getWalletByAddress(address) {
+  return db.prepare('SELECT * FROM wallets WHERE wallet_address = ?').get(address);
+}
+
+/**
+ * Get user's active wallet
+ * @param {number} userId - User ID
+ * @returns {object|null} Wallet record
+ */
+function getActiveWallet(userId) {
+  const user = db.prepare('SELECT active_wallet_id FROM users WHERE user_id = ?').get(userId);
+  if (!user || !user.active_wallet_id) return null;
+  return getWalletById(user.active_wallet_id);
+}
+
+/**
+ * Count user's wallets
+ * @param {number} userId - User ID
+ * @returns {number} Wallet count
+ */
+function getUserWalletCount(userId) {
+  const result = db.prepare('SELECT COUNT(*) as count FROM wallets WHERE user_id = ?').get(userId);
+  return result.count;
+}
+
+// ============================================================================
+// TOKEN OPERATIONS
+// ============================================================================
+
+/**
+ * Save token to database
+ * @param {object} tokenData - Token data
+ * @returns {object} Token record
+ */
+function saveToken(tokenData) {
+  const { userId, mintAddress, tokenName, tokenSymbol, decimals, totalSupply, metadataUri, platform, state } = tokenData;
+  
+  const result = db.prepare(`
+    INSERT INTO tokens (user_id, mint_address, token_name, token_symbol, decimals, total_supply, metadata_uri, platform, state)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(userId, mintAddress, tokenName, tokenSymbol, decimals, totalSupply || null, metadataUri || null, platform || 'standard', state || 'created');
+  
+  return db.prepare('SELECT * FROM tokens WHERE token_id = ?').get(result.lastInsertRowid);
+}
+
+/**
+ * Get user's tokens
+ * @param {number} userId - User ID
+ * @returns {array} Array of token records
+ */
+function getUserTokens(userId) {
+  return db.prepare('SELECT * FROM tokens WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+}
+
+/**
+ * Get token by mint address
+ * @param {string} mintAddress - Token mint address
+ * @returns {object|null} Token record
+ */
+function getTokenByMint(mintAddress) {
+  return db.prepare('SELECT * FROM tokens WHERE mint_address = ?').get(mintAddress);
+}
+
+/**
+ * Update token state
+ * @param {string} mintAddress - Token mint address
+ * @param {string} newState - New state
+ */
+function updateTokenState(mintAddress, newState) {
+  db.prepare('UPDATE tokens SET state = ? WHERE mint_address = ?').run(newState, mintAddress);
+}
+
+/**
+ * Update token platform
+ * @param {string} mintAddress - Token mint address
+ * @param {string} platform - Platform name
+ */
+function updateTokenPlatform(mintAddress, platform) {
+  db.prepare('UPDATE tokens SET platform = ? WHERE mint_address = ?').run(platform, mintAddress);
+}
+
+// ============================================================================
+// POOL OPERATIONS
+// ============================================================================
+
+/**
+ * Save pool to database
+ * @param {object} poolData - Pool data
+ * @returns {object} Pool record
+ */
+function savePool(poolData) {
+  const { tokenId, poolAddress, platform, lpTokenMint, initialTokenAmount, initialQuoteAmount } = poolData;
+  
+  const result = db.prepare(`
+    INSERT INTO pools (token_id, pool_address, platform, lp_token_mint, initial_token_amount, initial_quote_amount)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(tokenId, poolAddress, platform, lpTokenMint || null, initialTokenAmount || null, initialQuoteAmount || null);
+  
+  return db.prepare('SELECT * FROM pools WHERE pool_id = ?').get(result.lastInsertRowid);
+}
+
+/**
+ * Get pool by address
+ * @param {string} poolAddress - Pool address
+ * @returns {object|null} Pool record
+ */
+function getPoolByAddress(poolAddress) {
+  return db.prepare('SELECT * FROM pools WHERE pool_address = ?').get(poolAddress);
+}
+
+/**
+ * Get pools for a token
+ * @param {number} tokenId - Token ID
+ * @returns {array} Array of pool records
+ */
+function getTokenPools(tokenId) {
+  return db.prepare('SELECT * FROM pools WHERE token_id = ?').all(tokenId);
+}
+
+// ============================================================================
+// TRANSACTION OPERATIONS
+// ============================================================================
+
+/**
+ * Save transaction
+ * @param {number} userId - User ID
+ * @param {string} txHash - Transaction hash
+ * @param {string} txType - Transaction type
+ * @returns {object} Transaction record
+ */
+function saveTransaction(userId, txHash, txType) {
+  const result = db.prepare(
+    'INSERT INTO transactions (user_id, tx_hash, tx_type) VALUES (?, ?, ?)'
+  ).run(userId, txHash, txType);
+  
+  return db.prepare('SELECT * FROM transactions WHERE transaction_id = ?').get(result.lastInsertRowid);
+}
+
+/**
+ * Update transaction status
+ * @param {string} txHash - Transaction hash
+ * @param {string} status - New status
+ * @param {string} errorMessage - Error message (optional)
+ */
+function updateTransactionStatus(txHash, status, errorMessage = null) {
+  const confirmedAt = status === 'confirmed' ? Math.floor(Date.now() / 1000) : null;
+  db.prepare('UPDATE transactions SET status = ?, error_message = ?, confirmed_at = ? WHERE tx_hash = ?')
+    .run(status, errorMessage, confirmedAt, txHash);
+}
+
+/**
+ * Get user's recent transactions
+ * @param {number} userId - User ID
+ * @param {number} limit - Number of transactions to retrieve
+ * @returns {array} Array of transaction records
+ */
+function getUserTransactions(userId, limit = 20) {
+  return db.prepare(
+    'SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ?'
+  ).all(userId, limit);
+}
+
+// ============================================================================
+// STATE OPERATIONS (FSM)
+// ============================================================================
+
+/**
+ * Save user state
+ * @param {number} userId - User ID
+ * @param {string} state - State name
+ * @param {object} stateData - State data
+ */
+function saveUserState(userId, state, stateData = {}) {
+  const stateDataJson = JSON.stringify(stateData);
+  const timestamp = Math.floor(Date.now() / 1000);
+  
+  db.prepare(`
+    INSERT INTO user_states (user_id, current_state, state_data, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      current_state = excluded.current_state,
+      state_data = excluded.state_data,
+      updated_at = excluded.updated_at
+  `).run(userId, state, stateDataJson, timestamp);
+}
+
+/**
+ * Get user state
+ * @param {number} userId - User ID
+ * @returns {object|null} State record
+ */
+function getUserState(userId) {
+  const state = db.prepare('SELECT * FROM user_states WHERE user_id = ?').get(userId);
+  if (state && state.state_data) {
+    try {
+      state.state_data = JSON.parse(state.state_data);
+    } catch (e) {
+      state.state_data = {};
+    }
+  }
+  return state;
+}
+
+/**
+ * Clear user state
+ * @param {number} userId - User ID
+ */
+function clearUserState(userId) {
+  db.prepare('DELETE FROM user_states WHERE user_id = ?').run(userId);
+}
+
+// ============================================================================
+// SETTINGS OPERATIONS
+// ============================================================================
+
+/**
+ * Get user settings
+ * @param {number} userId - User ID
+ * @returns {object} Settings record
+ */
+function getUserSettings(userId) {
+  let settings = db.prepare('SELECT * FROM user_settings WHERE user_id = ?').get(userId);
+  if (!settings) {
+    // Create default settings
+    db.prepare('INSERT INTO user_settings (user_id) VALUES (?)').run(userId);
+    settings = db.prepare('SELECT * FROM user_settings WHERE user_id = ?').get(userId);
+  }
+  return settings;
+}
+
+/**
+ * Update user settings
+ * @param {number} userId - User ID
+ * @param {object} updates - Settings to update
+ */
+function updateUserSettings(userId, updates) {
+  const { priorityFeeLevel, customPriorityFee, slippageTolerance } = updates;
+  
+  const fields = [];
+  const values = [];
+  
+  if (priorityFeeLevel !== undefined) {
+    fields.push('priority_fee_level = ?');
+    values.push(priorityFeeLevel);
+  }
+  if (customPriorityFee !== undefined) {
+    fields.push('custom_priority_fee = ?');
+    values.push(customPriorityFee);
+  }
+  if (slippageTolerance !== undefined) {
+    fields.push('slippage_tolerance = ?');
+    values.push(slippageTolerance);
+  }
+  
+  if (fields.length > 0) {
+    values.push(userId);
+    db.prepare(`UPDATE user_settings SET ${fields.join(', ')} WHERE user_id = ?`).run(...values);
+  }
+}
+
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+// ============================================================================
+// SMART PROFIT OPERATIONS
+// ============================================================================
+
+function getSmartProfitSettings(userId) {
+  let settings = db.prepare('SELECT * FROM smart_profit_settings WHERE user_id = ?').get(userId);
+  if (!settings) {
+    db.prepare('INSERT INTO smart_profit_settings (user_id) VALUES (?)').run(userId);
+    settings = db.prepare('SELECT * FROM smart_profit_settings WHERE user_id = ?').get(userId);
+  }
+  return settings;
+}
+
+function updateSmartProfitSettings(userId, updates) {
+  const fields = [];
+  const values = [];
+  
+  Object.entries(updates).forEach(([key, value]) => {
+    if (value !== undefined) {
+      fields.push(`${key} = ?`);
+      values.push(value);
+    }
+  });
+  
+  if (fields.length > 0) {
+    values.push(userId);
+    db.prepare(`UPDATE smart_profit_settings SET ${fields.join(', ')}, updated_at = strftime('%s', 'now') WHERE user_id = ?`).run(...values);
+  }
+}
+
+// ============================================================================
+// WALLET GROUP OPERATIONS
+// ============================================================================
+
+function createWalletGroup(userId, groupName) {
+  const result = db.prepare('INSERT INTO wallet_groups (user_id, group_name) VALUES (?, ?)').run(userId, groupName);
+  return db.prepare('SELECT * FROM wallet_groups WHERE group_id = ?').get(result.lastInsertRowid);
+}
+
+function getUserWalletGroups(userId) {
+  return db.prepare('SELECT * FROM wallet_groups WHERE user_id = ?').all(userId);
+}
+
+function getWalletGroup(groupId) {
+  return db.prepare('SELECT * FROM wallet_groups WHERE group_id = ?').get(groupId);
+}
+
+function addWalletToGroup(groupId, walletId) {
+  db.prepare('INSERT OR IGNORE INTO wallet_group_members (group_id, wallet_id) VALUES (?, ?)').run(groupId, walletId);
+}
+
+function removeWalletFromGroup(groupId, walletId) {
+  db.prepare('DELETE FROM wallet_group_members WHERE group_id = ? AND wallet_id = ?').run(groupId, walletId);
+}
+
+function getGroupWallets(groupId) {
+  return db.prepare(`
+    SELECT w.* FROM wallets w
+    JOIN wallet_group_members wgm ON w.wallet_id = wgm.wallet_id
+    WHERE wgm.group_id = ?
+  `).all(groupId);
+}
+
+function deleteWalletGroup(groupId) {
+  db.prepare('DELETE FROM wallet_groups WHERE group_id = ?').run(groupId);
+}
+
+module.exports = {
+  initializeDatabase,
+  db,
+  // User operations
+  createOrGetUser,
+  getUserByTelegramId,
+  setActiveWallet,
+  setActiveToken,
+  // Wallet operations
+  saveWallet,
+  getUserWallets,
+  getWalletById,
+  getWalletByAddress,
+  getActiveWallet,
+  getUserWalletCount,
+  // Token operations
+  saveToken,
+  getUserTokens,
+  getTokenByMint,
+  updateTokenState,
+  updateTokenPlatform,
+  // Pool operations
+  savePool,
+  getPoolByAddress,
+  getTokenPools,
+  // Transaction operations
+  saveTransaction,
+  updateTransactionStatus,
+  getUserTransactions,
+  // State operations
+  saveUserState,
+  getUserState,
+  clearUserState,
+  // Settings operations
+  getUserSettings,
+  updateUserSettings,
+  // Smart Profit operations
+  getSmartProfitSettings,
+  updateSmartProfitSettings,
+  // Wallet Group operations
+  createWalletGroup,
+  getUserWalletGroups,
+  getWalletGroup,
+  addWalletToGroup,
+  removeWalletFromGroup,
+  getGroupWallets,
+  deleteWalletGroup
+};
+

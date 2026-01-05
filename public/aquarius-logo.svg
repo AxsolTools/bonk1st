@@ -1,0 +1,64 @@
+<svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="aquaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2ff"/>
+      <stop offset="50%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+    <linearGradient id="warmGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="50%" stop-color="#fb7185"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <linearGradient id="mixGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2ff"/>
+      <stop offset="100%" stop-color="#fb7185"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="#0a0e1a"/>
+  <circle cx="256" cy="256" r="240" fill="url(#aquaGrad)" fill-opacity="0.03"/>
+  
+  <!-- Outer ring -->
+  <circle cx="256" cy="256" r="230" stroke="url(#aquaGrad)" stroke-width="2" fill="none" stroke-opacity="0.3"/>
+  
+  <!-- Main water drop - Aquarius symbol -->
+  <path d="M256 80C256 80 140 200 140 290C140 354 192 406 256 406C320 406 372 354 372 290C372 200 256 80 256 80Z" fill="url(#aquaGrad)" filter="url(#glow)"/>
+  
+  <!-- Inner drop highlight -->
+  <path d="M256 140C256 140 180 230 180 295C180 337 213 370 256 370C299 370 332 337 332 295C332 230 256 140 256 140Z" fill="#0a0e1a" fill-opacity="0.4"/>
+  
+  <!-- Liquid wave inside -->
+  <path d="M185 300C185 300 200 280 230 290C260 300 280 280 310 290C340 300 355 290 355 290" stroke="url(#mixGrad)" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.8"/>
+  
+  <!-- Pour streams from top -->
+  <path d="M220 70C220 70 230 50 256 50C282 50 292 70 292 70" stroke="url(#warmGrad)" stroke-width="6" stroke-linecap="round" fill="none"/>
+  <circle cx="210" cy="55" r="8" fill="url(#warmGrad)"/>
+  <circle cx="302" cy="55" r="8" fill="url(#warmGrad)"/>
+  
+  <!-- Small bubbles -->
+  <circle cx="200" cy="320" r="6" fill="url(#aquaGrad)" fill-opacity="0.6"/>
+  <circle cx="280" cy="340" r="4" fill="url(#aquaGrad)" fill-opacity="0.5"/>
+  <circle cx="230" cy="360" r="5" fill="url(#aquaGrad)" fill-opacity="0.4"/>
+  <circle cx="310" cy="310" r="3" fill="url(#aquaGrad)" fill-opacity="0.7"/>
+  
+  <!-- Constellation stars around -->
+  <circle cx="100" cy="150" r="4" fill="#00f2ff" filter="url(#glow)"/>
+  <circle cx="412" cy="150" r="4" fill="#00f2ff" filter="url(#glow)"/>
+  <circle cx="80" cy="350" r="3" fill="#00f2ff" filter="url(#glow)"/>
+  <circle cx="432" cy="350" r="3" fill="#00f2ff" filter="url(#glow)"/>
+  <circle cx="150" cy="80" r="2" fill="#fb7185"/>
+  <circle cx="362" cy="80" r="2" fill="#fb7185"/>
+  
+  <!-- Connection lines (constellation) -->
+  <line x1="100" y1="150" x2="150" y2="80" stroke="#00f2ff" stroke-width="1" opacity="0.3"/>
+  <line x1="412" y1="150" x2="362" y2="80" stroke="#00f2ff" stroke-width="1" opacity="0.3"/>
+</svg>

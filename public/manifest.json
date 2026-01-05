@@ -1,0 +1,21 @@
+{
+  "name": "Propel - Infinite Liquidity Launchpad",
+  "short_name": "Propel",
+  "description": "The next-generation Solana token launchpad with continuous liquidity flow",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#00f2ff",
+  "icons": [
+    {
+      "src": "/propelweblogo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/propelweblogo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

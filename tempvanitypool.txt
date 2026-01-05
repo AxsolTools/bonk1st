@@ -1,0 +1,22 @@
+# Vanity Wallets - Suffix: aqua
+# Generated: 2025-12-29T23:16:05.080Z
+# Target Count: 100
+# Workers: 14
+
+Wallet #1:
+Public Key: 8d9pp1UWpwo1qTa6EGAwXEvZoSCiLRJJe7CFLTBnaqua
+Secret Key: 2vcDLhDCYVTDBFC1Uek2ac9hM6tBcu9HnGj5dWTt3n5grbKkKQoGgBDYfCMC45B2UwiAcznjEV44rtHC1c5iLdmJ
+Attempts: 85802
+Elapsed: 21.12s
+
+Wallet #2:
+Public Key: 9UGD5qVPVrYiPbRJkKMkdGTi9REjqMsuvAmCkThbaqua
+Secret Key: 4Tky7J2gmFPGXHEDzWVXk7WppKySCjZhYVstW1PPy1L6A1h46qCcnixBiFwZKvkxSiWYAjxpDWQzZkHBiuMM4uqA
+Attempts: 154568
+Elapsed: 40.14s
+
+Wallet #3:
+Public Key: BtgFWJ921kh4PgbLBxYVf8hieE4EiLJBs3ktfycTaqua
+Secret Key: 8dbR3EUoXdxQVthqboWpB7KFAMfwKZ5HonBUrxmm25fthLG3uBuxCdYjt7YpaXJtQtXqcUsvB2EUo3FxBLvhY7i
+Attempts: 1203059
+Elapsed: 302.14s

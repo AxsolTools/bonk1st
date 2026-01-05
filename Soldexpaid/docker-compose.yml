@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  bot:
+    build: .
+    container_name: solana-dexscreener-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./chats.json:/app/chats.json

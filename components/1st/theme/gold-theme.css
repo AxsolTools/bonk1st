@@ -1,0 +1,357 @@
+/**
+ * 1ST - USD1 DEGEN SNIPER PLATFORM
+ * Gold Terminal Theme
+ * 
+ * "wanna be first? use $1ST"
+ */
+
+/* ============================================================================
+   USD1 GOLD COLOR PALETTE
+   ============================================================================ */
+
+:root {
+  /* Primary Gold Spectrum */
+  --1st-gold: #D4AF37;
+  --1st-gold-50: #FFF9E6;
+  --1st-gold-100: #FFF0BF;
+  --1st-gold-200: #FFE699;
+  --1st-gold-300: #FFD966;
+  --1st-gold-400: #FFCC33;
+  --1st-gold-500: #D4AF37;
+  --1st-gold-600: #B8960F;
+  --1st-gold-700: #8B7355;
+  --1st-gold-800: #5C4D1F;
+  --1st-gold-900: #2E2610;
+  
+  /* Metallic Gold Variants */
+  --1st-gold-bright: #FFD700;
+  --1st-gold-dark: #B8860B;
+  --1st-gold-metallic: linear-gradient(135deg, #D4AF37 0%, #FFD700 25%, #D4AF37 50%, #B8860B 75%, #D4AF37 100%);
+  --1st-gold-shine: linear-gradient(90deg, transparent 0%, rgba(255, 215, 0, 0.4) 50%, transparent 100%);
+  
+  /* Glow Effects */
+  --1st-gold-glow: 0 0 20px rgba(212, 175, 55, 0.5);
+  --1st-gold-glow-strong: 0 0 30px rgba(212, 175, 55, 0.7), 0 0 60px rgba(212, 175, 55, 0.3);
+  --1st-gold-glow-pulse: 0 0 10px rgba(212, 175, 55, 0.8);
+  
+  /* Pitch Black Backgrounds */
+  --1st-bg-void: #000000;
+  --1st-bg-primary: #030303;
+  --1st-bg-secondary: #0A0A0A;
+  --1st-bg-tertiary: #111111;
+  --1st-bg-elevated: #161616;
+  --1st-bg-surface: #1A1A1A;
+  
+  /* Glass Morphism */
+  --1st-glass-bg: rgba(10, 10, 10, 0.85);
+  --1st-glass-border: rgba(212, 175, 55, 0.15);
+  --1st-glass-border-hover: rgba(212, 175, 55, 0.3);
+  --1st-glass-border-active: rgba(212, 175, 55, 0.5);
+  --1st-glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --1st-glass-blur: blur(12px);
+  
+  /* Terminal Colors */
+  --1st-terminal-green: #00FF41;
+  --1st-terminal-green-dim: #00CC33;
+  --1st-terminal-red: #FF3333;
+  --1st-terminal-red-dim: #CC2222;
+  --1st-terminal-yellow: #FFFF00;
+  --1st-terminal-cyan: #00FFFF;
+  --1st-terminal-magenta: #FF00FF;
+  --1st-terminal-orange: #FF8C00;
+  
+  /* Text Hierarchy */
+  --1st-text-primary: #FFFFFF;
+  --1st-text-secondary: rgba(255, 255, 255, 0.75);
+  --1st-text-tertiary: rgba(255, 255, 255, 0.5);
+  --1st-text-muted: rgba(255, 255, 255, 0.35);
+  --1st-text-gold: #D4AF37;
+  --1st-text-gold-bright: #FFD700;
+  
+  /* Status Colors */
+  --1st-success: #00FF41;
+  --1st-success-bg: rgba(0, 255, 65, 0.1);
+  --1st-warning: #FFD700;
+  --1st-warning-bg: rgba(255, 215, 0, 0.1);
+  --1st-danger: #FF3333;
+  --1st-danger-bg: rgba(255, 51, 51, 0.1);
+  --1st-info: #00FFFF;
+  --1st-info-bg: rgba(0, 255, 255, 0.1);
+  
+  /* Borders */
+  --1st-border-subtle: rgba(255, 255, 255, 0.05);
+  --1st-border-default: rgba(255, 255, 255, 0.1);
+  --1st-border-gold: rgba(212, 175, 55, 0.3);
+  --1st-border-gold-bright: rgba(212, 175, 55, 0.6);
+  
+  /* Spacing */
+  --1st-space-xs: 4px;
+  --1st-space-sm: 8px;
+  --1st-space-md: 16px;
+  --1st-space-lg: 24px;
+  --1st-space-xl: 32px;
+  --1st-space-2xl: 48px;
+  
+  /* Border Radius */
+  --1st-radius-sm: 4px;
+  --1st-radius-md: 8px;
+  --1st-radius-lg: 12px;
+  --1st-radius-xl: 16px;
+  --1st-radius-full: 9999px;
+  
+  /* Transitions */
+  --1st-transition-fast: 150ms ease;
+  --1st-transition-normal: 250ms ease;
+  --1st-transition-slow: 400ms ease;
+  
+  /* Z-Index Scale */
+  --1st-z-base: 1;
+  --1st-z-dropdown: 100;
+  --1st-z-sticky: 200;
+  --1st-z-modal: 300;
+  --1st-z-toast: 400;
+  --1st-z-tooltip: 500;
+}
+
+/* ============================================================================
+   ANIMATIONS
+   ============================================================================ */
+
+@keyframes first-pulse-gold {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(212, 175, 55, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.8), 0 0 40px rgba(212, 175, 55, 0.4);
+  }
+}
+
+@keyframes first-glow-scan {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes first-terminal-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+@keyframes first-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes first-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes first-shine {
+  0% {
+    background-position: -100% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes first-border-glow {
+  0%, 100% {
+    border-color: rgba(212, 175, 55, 0.3);
+  }
+  50% {
+    border-color: rgba(212, 175, 55, 0.6);
+  }
+}
+
+@keyframes first-number-flash {
+  0% {
+    color: var(--first-gold-bright);
+    text-shadow: 0 0 10px var(--first-gold-bright);
+  }
+  100% {
+    color: var(--first-text-primary);
+    text-shadow: none;
+  }
+}
+
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
+
+.first-gold-text {
+  color: var(--1st-gold);
+}
+
+.first-gold-text-bright {
+  color: var(--1st-gold-bright);
+}
+
+.first-gold-gradient-text {
+  background: var(--1st-gold-metallic);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.first-glass-panel {
+  background: var(--1st-glass-bg);
+  backdrop-filter: var(--1st-glass-blur);
+  -webkit-backdrop-filter: var(--1st-glass-blur);
+  border: 1px solid var(--1st-glass-border);
+  box-shadow: var(--1st-glass-shadow);
+}
+
+.first-glass-panel:hover {
+  border-color: var(--1st-glass-border-hover);
+}
+
+.first-gold-border {
+  border: 1px solid var(--1st-border-gold);
+}
+
+.first-gold-border-glow {
+  border: 1px solid var(--1st-border-gold);
+  animation: first-border-glow 2s ease-in-out infinite;
+}
+
+.first-gold-glow {
+  box-shadow: var(--1st-gold-glow);
+}
+
+.first-gold-glow-strong {
+  box-shadow: var(--1st-gold-glow-strong);
+}
+
+.first-pulse-active {
+  animation: first-pulse-gold 2s ease-in-out infinite;
+}
+
+.first-terminal-cursor::after {
+  content: '█';
+  animation: first-terminal-blink 1s step-end infinite;
+  color: var(--1st-gold);
+}
+
+.first-fade-in {
+  animation: first-fade-in 0.3s ease-out forwards;
+}
+
+.first-slide-up {
+  animation: first-slide-up 0.4s ease-out forwards;
+}
+
+.first-shine-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.first-shine-effect::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 215, 0, 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: first-shine 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Terminal text colors */
+.first-terminal-green { color: var(--1st-terminal-green); }
+.first-terminal-red { color: var(--1st-terminal-red); }
+.first-terminal-yellow { color: var(--1st-terminal-yellow); }
+.first-terminal-cyan { color: var(--1st-terminal-cyan); }
+.first-terminal-magenta { color: var(--1st-terminal-magenta); }
+.first-terminal-orange { color: var(--1st-terminal-orange); }
+
+/* Status backgrounds */
+.first-status-success {
+  background: var(--1st-success-bg);
+  border-color: var(--1st-success);
+  color: var(--1st-success);
+}
+
+.first-status-warning {
+  background: var(--1st-warning-bg);
+  border-color: var(--1st-warning);
+  color: var(--1st-warning);
+}
+
+.first-status-danger {
+  background: var(--1st-danger-bg);
+  border-color: var(--1st-danger);
+  color: var(--1st-danger);
+}
+
+.first-status-info {
+  background: var(--1st-info-bg);
+  border-color: var(--1st-info);
+  color: var(--1st-info);
+}
+
+/* Number flash for live updates */
+.first-number-update {
+  animation: first-number-flash 0.5s ease-out;
+}
+
+/* Scrollbar styling for terminal */
+.first-terminal-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.first-terminal-scroll::-webkit-scrollbar-track {
+  background: var(--1st-bg-secondary);
+  border-radius: 3px;
+}
+
+.first-terminal-scroll::-webkit-scrollbar-thumb {
+  background: var(--1st-gold-700);
+  border-radius: 3px;
+}
+
+.first-terminal-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--1st-gold-500);
+}
+
+/* Focus states */
+.first-focus-gold:focus {
+  outline: none;
+  border-color: var(--1st-gold);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
+}
+
+/* Tabular numbers for data display */
+.first-tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
