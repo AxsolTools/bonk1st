@@ -410,8 +410,9 @@ export function use1stSniper() {
         filterResults: [],
       }
       
-      // Check if token already exists (avoid duplicates)
+      // Check if token already exists (avoid duplicates) - use Set for O(1) lookup
       setNewTokens(prev => {
+        // Check if this exact token mint already exists
         const exists = prev.some(t => t.tokenMint === newToken.tokenMint)
         if (exists) {
           console.log(`[BONK1ST] Token ${parsed.tokenMint.slice(0,8)} already exists, skipping`)
@@ -421,7 +422,7 @@ export function use1stSniper() {
         // Update stats
         setStats(s => ({ ...s, tokensDetected: s.tokensDetected + 1 }))
         
-        // Save to Supabase for persistence
+        // Save to Supabase for persistence (async, don't wait)
         saveTokenToSupabase(newToken)
         
         addLog(
@@ -432,8 +433,22 @@ export function use1stSniper() {
           logData.signature
         )
         
-        // Add to list (most recent first)
-        return [newToken, ...prev.slice(0, 99)]
+        // Add to list (most recent first) and ensure no duplicates
+        // Use Map to deduplicate by tokenMint, then convert back to array
+        const tokenMap = new Map<string, NewTokenEvent>()
+        // Add new token first (most recent)
+        tokenMap.set(newToken.tokenMint, newToken)
+        // Add existing tokens (skip if duplicate)
+        prev.forEach(token => {
+          if (!tokenMap.has(token.tokenMint)) {
+            tokenMap.set(token.tokenMint, token)
+          }
+        })
+        
+        // Convert back to array, sorted by creation timestamp (most recent first)
+        return Array.from(tokenMap.values())
+          .sort((a, b) => b.creationTimestamp - a.creationTimestamp)
+          .slice(0, 100) // Keep max 100 tokens
       })
       
       // Check if sniper is armed and should snipe
@@ -542,8 +557,9 @@ export function use1stSniper() {
         filterResults: [],
       }
       
-      // Check if token already exists (avoid duplicates)
+      // Check if token already exists (avoid duplicates) - use Map for O(1) lookup
       setNewTokens(prev => {
+        // Check if this exact token mint already exists
         const exists = prev.some(t => t.tokenMint === newToken.tokenMint)
         if (exists) {
           console.log(`[BONK1ST] Token ${parsed.tokenMint.slice(0,8)} already exists, skipping`)
@@ -552,7 +568,7 @@ export function use1stSniper() {
         
         setStats(s => ({ ...s, tokensDetected: s.tokensDetected + 1 }))
         
-        // Save to Supabase for persistence
+        // Save to Supabase for persistence (async, don't wait)
         saveTokenToSupabase(newToken)
         
         addLog(
@@ -577,7 +593,22 @@ export function use1stSniper() {
           }
         }
         
-        return [newToken, ...prev.slice(0, 99)]
+        // Add to list (most recent first) and ensure no duplicates
+        // Use Map to deduplicate by tokenMint, then convert back to array
+        const tokenMap = new Map<string, NewTokenEvent>()
+        // Add new token first (most recent)
+        tokenMap.set(newToken.tokenMint, newToken)
+        // Add existing tokens (skip if duplicate)
+        prev.forEach(token => {
+          if (!tokenMap.has(token.tokenMint)) {
+            tokenMap.set(token.tokenMint, token)
+          }
+        })
+        
+        // Convert back to array, sorted by creation timestamp (most recent first)
+        return Array.from(tokenMap.values())
+          .sort((a, b) => b.creationTimestamp - a.creationTimestamp)
+          .slice(0, 100) // Keep max 100 tokens
       })
     } catch (error) {
       console.error('[BONK1ST] Error parsing Pump.fun logs:', error)

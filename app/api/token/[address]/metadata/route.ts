@@ -69,10 +69,29 @@ export async function GET(
       )
     }
 
-    // Try DAS API first
+    // Try DexScreener FIRST for logos (best source for token images)
+    const dexResponse = await fetchFromDexScreener(address)
+    if (dexResponse) {
+      // If DexScreener has the logo, use it immediately
+      if (dexResponse.logoUri && !dexResponse.logoUri.includes('dd.dexscreener.com/ds-data')) {
+        return NextResponse.json({
+          success: true,
+          data: dexResponse,
+          source: 'dexscreener',
+        })
+      }
+    }
+
+    // Then try Helius DAS for additional metadata
     if (HELIUS_API_KEY) {
       const dasResponse = await fetchFromDAS(address)
       if (dasResponse) {
+        // Merge DexScreener logo if available and DAS doesn't have one
+        if (dexResponse && dexResponse.logoUri && !dasResponse.logoUri) {
+          dasResponse.logoUri = dexResponse.logoUri
+          dasResponse.logo = dexResponse.logoUri
+          dasResponse.image = dexResponse.logoUri
+        }
         return NextResponse.json({
           success: true,
           data: dasResponse,
@@ -81,8 +100,7 @@ export async function GET(
       }
     }
 
-    // Fallback to DexScreener
-    const dexResponse = await fetchFromDexScreener(address)
+    // Return DexScreener response if we have it (even if logo is CDN)
     if (dexResponse) {
       return NextResponse.json({
         success: true,
@@ -205,26 +223,55 @@ async function fetchFromDexScreener(address: string) {
       `https://api.dexscreener.com/latest/dex/tokens/${address}`,
       {
         headers: {
-          'User-Agent': 'AQUA-Launchpad/1.0',
+          'User-Agent': 'BONK1ST-Sniper/1.0',
         },
+        next: { revalidate: 30 }, // Cache for 30 seconds
       }
     )
 
     if (!response.ok) return null
 
     const data = await response.json()
-    const pair = data.pairs?.[0]
+    
+    // DexScreener returns pairs array - find the best pair (highest liquidity or first)
+    const pairs = data.pairs || []
+    if (pairs.length === 0) return null
+    
+    // Sort by liquidity (highest first) to get the best pair
+    const sortedPairs = pairs.sort((a: any, b: any) => {
+      const aLiq = a.liquidity?.usd || 0
+      const bLiq = b.liquidity?.usd || 0
+      return bLiq - aLiq
+    })
+    
+    const pair = sortedPairs[0]
+    const baseToken = pair.baseToken
 
-    if (!pair?.baseToken) return null
+    if (!baseToken) return null
+
+    // Get logo from multiple possible locations in DexScreener response
+    // Priority: info.imageUrl > baseToken logo > CDN fallback
+    const logoUri = pair.info?.imageUrl || 
+                    baseToken.logoURI || 
+                    `https://dd.dexscreener.com/ds-data/tokens/solana/${address}.png`
+
+    // Calculate market cap from DexScreener if available
+    const marketCap = pair.fdv || pair.marketCap || 0
+    const liquidity = pair.liquidity?.usd || 0
 
     return {
       address,
-      name: pair.baseToken.name || 'Unknown',
-      symbol: pair.baseToken.symbol || 'UNKNOWN',
-      decimals: 6, // Default for most Solana tokens
-      logoUri: pair.info?.imageUrl || `https://dd.dexscreener.com/ds-data/tokens/solana/${address}.png`,
+      name: baseToken.name || 'Unknown',
+      symbol: baseToken.symbol || 'UNKNOWN',
+      decimals: baseToken.decimals || 6,
+      logoUri,
+      logo: logoUri, // Also include as 'logo' for compatibility
+      image: logoUri, // Also include as 'image' for compatibility
       description: '',
       supply: 0,
+      marketCap,
+      liquidity,
+      pricePerToken: pair.priceUsd ? parseFloat(pair.priceUsd) : 0,
       isNft: false,
       isFungible: true,
       creators: [],

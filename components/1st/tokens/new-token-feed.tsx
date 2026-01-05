@@ -29,25 +29,32 @@ function LiveTokenCard({
   })
   const [isLoading, setIsLoading] = React.useState(true)
   
-  // Fetch metadata and stats from existing backend APIs
+  // Fetch metadata and stats from existing backend APIs - real-time updates
   React.useEffect(() => {
     const fetchTokenData = async () => {
       try {
-        // Fetch metadata and stats in parallel
+        // Fetch metadata and stats in parallel - use cache-busting for real-time updates
+        const cacheBuster = Date.now()
         const [metadataRes, statsRes] = await Promise.all([
-          fetch(`/api/token/${token.tokenMint}/metadata`),
-          fetch(`/api/token/${token.tokenMint}/stats`),
+          fetch(`/api/token/${token.tokenMint}/metadata?t=${cacheBuster}`, {
+            cache: 'no-store', // Force fresh data
+          }),
+          fetch(`/api/token/${token.tokenMint}/stats?t=${cacheBuster}`, {
+            cache: 'no-store', // Force fresh data
+          }),
         ])
         
         let liquidity = token.initialLiquidityUsd
         let marketCap = token.initialMarketCap
         let logo = token.tokenLogo || null
         
-        // Parse metadata (includes logo, price, marketCap from Helius DAS)
+        // Parse metadata (DexScreener first, then Helius DAS)
         if (metadataRes.ok) {
           const metaData = await metadataRes.json()
           if (metaData.success && metaData.data) {
+            // Prioritize logo from DexScreener (best source)
             logo = metaData.data.logoUri || metaData.data.logo || metaData.data.image || logo
+            // Use market cap from metadata if available
             if (metaData.data.marketCap && metaData.data.marketCap > 0) {
               marketCap = metaData.data.marketCap
             }
@@ -74,9 +81,10 @@ function LiveTokenCard({
       }
     }
     
+    // Initial fetch immediately
     fetchTokenData()
-    // Poll every 10 seconds like existing components
-    const interval = setInterval(fetchTokenData, 10_000)
+    // Poll every 5 seconds for real-time updates (faster than 10s for new tokens)
+    const interval = setInterval(fetchTokenData, 5_000)
     return () => clearInterval(interval)
   }, [token.tokenMint, token.initialLiquidityUsd, token.initialMarketCap, token.tokenLogo])
   

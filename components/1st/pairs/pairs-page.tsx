@@ -138,22 +138,29 @@ function LivePairRow({
     logo: pair.tokenLogo || null,
   })
   
-  // Fetch live data from existing backend APIs
+  // Fetch live data from existing backend APIs - real-time updates
   React.useEffect(() => {
     const fetchData = async () => {
       try {
+        // Use cache-busting for real-time updates
+        const cacheBuster = Date.now()
         const [metadataRes, statsRes] = await Promise.all([
-          fetch(`/api/token/${pair.tokenMint}/metadata`),
-          fetch(`/api/token/${pair.tokenMint}/stats`),
+          fetch(`/api/token/${pair.tokenMint}/metadata?t=${cacheBuster}`, {
+            cache: 'no-store', // Force fresh data
+          }),
+          fetch(`/api/token/${pair.tokenMint}/stats?t=${cacheBuster}`, {
+            cache: 'no-store', // Force fresh data
+          }),
         ])
         
         let liquidity = pair.initialLiquidity
         let logo = pair.tokenLogo || null
         
-        // Get logo from metadata
+        // Get logo from metadata (DexScreener first, then Helius)
         if (metadataRes.ok) {
           const metaData = await metadataRes.json()
           if (metaData.success && metaData.data) {
+            // Prioritize DexScreener logo (best source)
             logo = metaData.data.logoUri || metaData.data.logo || metaData.data.image || logo
           }
         }
@@ -176,8 +183,10 @@ function LivePairRow({
       }
     }
     
+    // Initial fetch immediately
     fetchData()
-    const interval = setInterval(fetchData, 10_000)
+    // Poll every 5 seconds for real-time updates
+    const interval = setInterval(fetchData, 5_000)
     return () => clearInterval(interval)
   }, [pair.tokenMint, pair.initialLiquidity, pair.tokenLogo])
   
@@ -298,16 +307,35 @@ export function PairsPage() {
     return counts
   }, [newTokens])
   
-  // Convert new tokens to pairs format
+  // Convert new tokens to pairs format - deduplicate and filter to recent tokens only
   const recentPairs = React.useMemo(() => {
-    return newTokens.slice(0, 20).map(token => ({
-      tokenMint: token.tokenMint,
-      tokenSymbol: token.tokenSymbol || 'UNKNOWN',
-      tokenLogo: token.tokenLogo || `https://dd.dexscreener.com/ds-data/tokens/solana/${token.tokenMint}.png`,
-      pool: token.pool,
-      initialLiquidity: token.initialLiquidityUsd,
-      createdAt: token.creationTimestamp,
-    }))
+    const now = Date.now()
+    const oneHourAgo = now - (60 * 60 * 1000) // Only show tokens from last hour
+    
+    // Deduplicate by tokenMint and filter to recent tokens
+    const seen = new Set<string>()
+    const recent = newTokens
+      .filter(token => {
+        // Only show tokens from last hour (real-time feed)
+        if (token.creationTimestamp < oneHourAgo) return false
+        
+        // Deduplicate by mint address
+        if (seen.has(token.tokenMint)) return false
+        seen.add(token.tokenMint)
+        return true
+      })
+      .sort((a, b) => b.creationTimestamp - a.creationTimestamp) // Most recent first
+      .slice(0, 20) // Limit to 20 most recent
+      .map(token => ({
+        tokenMint: token.tokenMint,
+        tokenSymbol: token.tokenSymbol || 'UNKNOWN',
+        tokenLogo: token.tokenLogo || undefined, // Don't use DexScreener CDN fallback
+        pool: token.pool,
+        initialLiquidity: token.initialLiquidityUsd,
+        createdAt: token.creationTimestamp,
+      }))
+    
+    return recent
   }, [newTokens])
   
   const togglePoolMonitoring = (pool: TargetPool) => {
