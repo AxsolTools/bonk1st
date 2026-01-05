@@ -286,7 +286,8 @@ export function use1stSniper() {
         if (metaData.success && metaData.data) {
           symbol = metaData.data.symbol
           name = metaData.data.name
-          logo = metaData.data.logo || metaData.data.image
+          // API returns logoUri, not logo
+          logo = metaData.data.logoUri || metaData.data.logo || metaData.data.image
         }
       }
       
