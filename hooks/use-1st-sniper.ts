@@ -50,108 +50,7 @@ const createLog = (
 })
 
 // Debug mode - set to true to see all incoming WebSocket data
-const DEBUG_MODE = false
-
-// System addresses that should NEVER be treated as token mints
-// These are Solana programs and system accounts, not tradeable tokens
-const INVALID_TOKEN_ADDRESSES = new Set([
-  // Compute Budget Program - This is causing the spam
-  'ComputeBudget111111111111111111111111111111',
-  // System Program
-  '11111111111111111111111111111111',
-  // SPL Token Programs
-  'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-  'TokenkegQfeZyiNwAJbNY5vgNBH4DQ3TonLk17nRba62L',
-  'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
-  // Associated Token Program
-  'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
-  // Metaplex
-  'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s',
-  // System vars
-  'SysvarRent111111111111111111111111111111111',
-  'SysvarC1ock11111111111111111111111111111111',
-  'SysvarS1otHashes111111111111111111111111111',
-  'SysvarRecentB1ockHashes11111111111111111111',
-  'SysvarInstructions1111111111111111111111111',
-  // Stake/Vote
-  'Stake11111111111111111111111111111111111111',
-  'Vote111111111111111111111111111111111111111',
-  'Config1111111111111111111111111111111111111',
-  // BPF Loaders
-  'BPFLoader2111111111111111111111111111111111',
-  'BPFLoaderUpgradeab1e11111111111111111111111',
-  'NativeLoader1111111111111111111111111111111',
-  // Raydium
-  'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS',
-  '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8',
-  '5quBtoiQqxF9Jv6KYKctB59NT3gtJD2Y65kdnB1Uev3h',
-  '27haf8L6oxUeXrHrgEgsexjSY5hbVUWEmvv9Nyxg8vQv',
-  'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK',
-  // LaunchLab
-  'LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj',
-  // Pump.fun
-  '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P',
-  // Jupiter
-  'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4',
-  'JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB',
-  // Flash loan
-  'FLASHX8DrLbgeR8FcfNV1F5krxYcYMUdBkrP1EPBtxB9',
-  'FL1Xhi3FakNPUgKwn2EPkf1Bqg3YPXAE8NwBCfkF6d7o',
-  // Memo
-  'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
-  'Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo',
-  // Quote tokens (not tradeable as new tokens)
-  'USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB',
-  'So11111111111111111111111111111111111111112',
-  // BONK platform
-  '8pCtbn9iatQ8493mDQax4xfEUjhoVBpUWYVQoRU18333',
-  // Serum/OpenBook
-  'srmqPvymJeFKQ4zGQed1GFppgkRHL9kaELCbyksJtPX',
-  '9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin',
-])
-
-// Base58 character set (Solana addresses use this)
-// Base58 does NOT contain: 0, O, I, l (to avoid confusion)
-const BASE58_CHARS = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-const BASE58_REGEX = /^[1-9A-HJ-NP-Za-km-z]+$/
-
-// Helper to validate if an address is a valid Solana base58 token mint
-const isValidTokenMint = (address: string | null | undefined): boolean => {
-  if (!address) return false
-  
-  // Length check - Solana addresses are 32-44 chars
-  if (address.length < 32 || address.length > 44) return false
-  
-  // CRITICAL: Must be valid base58 (no 0, O, I, l characters)
-  // This filters out base64 encoded data which contains these chars
-  if (!BASE58_REGEX.test(address)) return false
-  
-  // Reject known system addresses
-  if (INVALID_TOKEN_ADDRESSES.has(address)) return false
-  
-  // Reject addresses with lots of consecutive identical chars (likely padding/garbage)
-  if (/(.)\1{7,}/.test(address)) return false
-  
-  // Reject addresses that look like program IDs (lots of 1s)
-  if (address.includes('11111111')) return false
-  
-  // Reject addresses that start with known program prefixes
-  if (address.startsWith('ComputeBudget')) return false
-  if (address.startsWith('Token')) return false
-  if (address.startsWith('Sysvar')) return false
-  if (address.startsWith('BPF')) return false
-  if (address.startsWith('Native')) return false
-  if (address.startsWith('FLASH')) return false
-  
-  // Reject addresses that look like base64 data (contain + / =)
-  if (address.includes('+') || address.includes('/') || address.includes('=')) return false
-  
-  // Reject addresses that are mostly uppercase A's (common in garbage data)
-  const upperACount = (address.match(/A/g) || []).length
-  if (upperACount > address.length * 0.4) return false
-  
-  return true
-}
+const DEBUG_MODE = true
 
 /**
  * BONK1ST Sniper Hook
@@ -245,48 +144,6 @@ export function use1stSniper() {
     }
   }, [])
   
-  // Load detected tokens from Supabase on mount
-  useEffect(() => {
-    const loadDetectedTokens = async () => {
-      const effectiveSessionId = sessionId || userId
-      if (!effectiveSessionId) return
-      
-      try {
-        const response = await fetch(`/api/1st/detected-tokens?sessionId=${effectiveSessionId}&limit=100`)
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.data?.length > 0) {
-            setNewTokens(data.data)
-            addLog('info', `📥 Loaded ${data.data.length} previously detected tokens`)
-          }
-        }
-      } catch (error) {
-        console.error('[BONK1ST] Failed to load detected tokens:', error)
-      }
-    }
-    
-    loadDetectedTokens()
-  }, [sessionId, userId, addLog])
-  
-  // Save detected token to Supabase (persists across refreshes)
-  const saveDetectedToken = useCallback(async (token: NewTokenEvent) => {
-    const effectiveSessionId = sessionId || userId
-    if (!effectiveSessionId) return
-    
-    try {
-      await fetch('/api/1st/detected-tokens', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: effectiveSessionId,
-          token,
-        }),
-      })
-    } catch (error) {
-      console.error('[BONK1ST] Failed to save detected token:', error)
-    }
-  }, [sessionId, userId])
-  
   // Save config to localStorage
   const setConfig = useCallback((updates: Partial<SniperConfig>) => {
     setConfigState(prev => {
@@ -303,9 +160,7 @@ export function use1stSniper() {
     }
   }, [history])
   
-  // Fetch token metadata from existing backend APIs
-  // Uses /api/token/[address]/metadata for symbol, name, logo (DexScreener CDN)
-  // Uses /api/token/[address]/stats for liquidity, marketCap
+  // Fetch token metadata
   const fetchTokenMetadata = useCallback(async (tokenMint: string): Promise<{
     symbol?: string
     name?: string
@@ -314,71 +169,21 @@ export function use1stSniper() {
     marketCap?: number
   }> => {
     try {
-      // Fetch metadata and stats in parallel from existing backend
-      const [metadataRes, statsRes] = await Promise.all([
-        fetch(`/api/token/${tokenMint}/metadata`).catch(() => null),
-        fetch(`/api/token/${tokenMint}/stats`).catch(() => null),
-      ])
-      
-      let symbol: string | undefined
-      let name: string | undefined
-      let logo: string | undefined
-      let liquidity: number | undefined
-      let marketCap: number | undefined
-      
-      // Parse metadata response (symbol, name, logo from DexScreener CDN)
-      if (metadataRes?.ok) {
-        const metaData = await metadataRes.json()
-        if (metaData.success && metaData.data) {
-          symbol = metaData.data.symbol
-          name = metaData.data.name
-          logo = metaData.data.logoUri || `https://dd.dexscreener.com/ds-data/tokens/solana/${tokenMint}.png`
+      const response = await fetch(`/api/token/${tokenMint}/stats`)
+      if (response.ok) {
+        const data = await response.json()
+        return {
+          symbol: data.symbol,
+          name: data.name,
+          logo: data.logo,
+          liquidity: data.liquidity,
+          marketCap: data.marketCap,
         }
       }
-      
-      // Parse stats response (liquidity, volume, holders)
-      if (statsRes?.ok) {
-        const statsData = await statsRes.json()
-        if (statsData.success && statsData.data) {
-          liquidity = statsData.data.liquidity || 0
-          // Estimate market cap from liquidity if not provided
-          marketCap = statsData.data.liquidity ? statsData.data.liquidity * 2 : 0
-        }
-      }
-      
-      // Fallback: Try DexScreener directly if metadata API failed
-      if (!symbol || !name) {
-        try {
-          const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`)
-          if (dexRes.ok) {
-            const dexData = await dexRes.json()
-            const pair = dexData.pairs?.[0]
-            if (pair?.baseToken) {
-              symbol = symbol || pair.baseToken.symbol
-              name = name || pair.baseToken.name
-              logo = logo || pair.info?.imageUrl || `https://dd.dexscreener.com/ds-data/tokens/solana/${tokenMint}.png`
-              liquidity = liquidity || pair.liquidity?.usd || 0
-              marketCap = marketCap || pair.marketCap || pair.fdv || 0
-            }
-          }
-        } catch (e) {
-          // DexScreener fallback failed, continue with what we have
-        }
-      }
-      
-      // Final fallback for logo - always use DexScreener CDN
-      if (!logo) {
-        logo = `https://dd.dexscreener.com/ds-data/tokens/solana/${tokenMint}.png`
-      }
-      
-      return { symbol, name, logo, liquidity, marketCap }
     } catch (error) {
       console.error('[BONK1ST] Failed to fetch token metadata:', error)
-      // Return DexScreener CDN logo as fallback
-      return { 
-        logo: `https://dd.dexscreener.com/ds-data/tokens/solana/${tokenMint}.png` 
-      }
     }
+    return {}
   }, [])
   
   // Handle LaunchLab logs (BONK/USD1 and BONK/SOL pools)
@@ -433,11 +238,7 @@ export function use1stSniper() {
         console.log('[BONK1ST DEBUG] LaunchLab parse result:', parsed)
       }
       
-      // CRITICAL: Validate that we have a real token mint, not a system address
-      if (!parsed.isNewPool || !parsed.tokenMint || !isValidTokenMint(parsed.tokenMint)) {
-        if (DEBUG_MODE && parsed.tokenMint) {
-          console.log('[BONK1ST DEBUG] Rejected invalid token mint:', parsed.tokenMint)
-        }
+      if (!parsed.isNewPool || !parsed.tokenMint) {
         return
       }
       
@@ -477,9 +278,6 @@ export function use1stSniper() {
       // Add to new tokens list (most recent first)
       setNewTokens(prev => [newToken, ...prev.slice(0, 99)])
       
-      // Save to Supabase for persistence across refreshes
-      saveDetectedToken(newToken)
-      
       addLog(
         'detection', 
         `🆕 NEW ${pool.toUpperCase()}: ${metadata.symbol || parsed.tokenMint.slice(0, 8)}...`, 
@@ -513,7 +311,7 @@ export function use1stSniper() {
     } catch (error) {
       console.error('[BONK1ST] Error parsing LaunchLab logs:', error)
     }
-  }, [addLog, fetchTokenMetadata, saveDetectedToken])
+  }, [addLog, fetchTokenMetadata])
   
   // Handle Pump.fun logs
   const handlePumpFunLogs = useCallback(async (data: unknown) => {
@@ -565,11 +363,7 @@ export function use1stSniper() {
         console.log('[BONK1ST DEBUG] Pump.fun parse result:', parsed)
       }
       
-      // CRITICAL: Validate that we have a real token mint, not a system address
-      if (!parsed.isNewToken || !parsed.tokenMint || !isValidTokenMint(parsed.tokenMint)) {
-        if (DEBUG_MODE && parsed.tokenMint) {
-          console.log('[BONK1ST DEBUG] Rejected invalid token mint:', parsed.tokenMint)
-        }
+      if (!parsed.isNewToken || !parsed.tokenMint) {
         return
       }
       
@@ -601,9 +395,6 @@ export function use1stSniper() {
       setStats(prev => ({ ...prev, tokensDetected: prev.tokensDetected + 1 }))
       setNewTokens(prev => [newToken, ...prev.slice(0, 99)])
       
-      // Save to Supabase for persistence across refreshes
-      saveDetectedToken(newToken)
-      
       addLog(
         'detection', 
         `🆕 NEW PUMP: ${metadata.symbol || parsed.tokenMint.slice(0, 8)}...`, 
@@ -628,7 +419,7 @@ export function use1stSniper() {
     } catch (error) {
       console.error('[BONK1ST] Error parsing Pump.fun logs:', error)
     }
-  }, [addLog, fetchTokenMetadata, saveDetectedToken])
+  }, [addLog, fetchTokenMetadata])
   
   // ALWAYS subscribe to LaunchLab (BONK pools) for real-time feed display
   // Sniping only happens when status === 'armed'

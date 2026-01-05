@@ -461,7 +461,7 @@ export function formatTimeAgo(timestamp: number): string {
  * Returns token mint if this is a new pool creation, null otherwise
  * 
  * LaunchLab creates pools with initialize/initialize_v2 instructions
- * We look for specific patterns that indicate actual pool creation, not just any transaction
+ * Log patterns vary but typically include the mint address
  */
 export function parselaunchLabLog(logs: string[] | undefined | null): { 
   isNewPool: boolean
@@ -479,162 +479,55 @@ export function parselaunchLabLog(logs: string[] | undefined | null): {
     return { isNewPool, tokenMint, quoteMint, creator }
   }
   
-  const fullLog = logs.join('\n')
+  const fullLog = logs.join(' ')
   
-  // Known system/program addresses to EXCLUDE from token mint detection
-  // These are NOT token mints - they are Solana programs and system addresses
-  const SYSTEM_ADDRESSES = new Set([
-    // Compute Budget
-    'ComputeBudget111111111111111111111111111111',
-    // System Program
-    '11111111111111111111111111111111',
-    // Token Programs
-    'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-    'TokenkegQfeZyiNwAJbNY5vgNBH4DQ3TonLk17nRba62L',
-    'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
-    // Associated Token Program
-    'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
-    // Metaplex
-    'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s',
-    // Rent
-    'SysvarRent111111111111111111111111111111111',
-    // Clock
-    'SysvarC1ock11111111111111111111111111111111',
-    // Stake
-    'Stake11111111111111111111111111111111111111',
-    // Config
-    'Config1111111111111111111111111111111111111',
-    // Vote
-    'Vote111111111111111111111111111111111111111',
-    // BPF Loader
-    'BPFLoader2111111111111111111111111111111111',
-    'BPFLoaderUpgradeab1e11111111111111111111111',
-    // Serum/OpenBook
-    'srmqPvymJeFKQ4zGQed1GFppgkRHL9kaELCbyksJtPX',
-    '9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin',
-    // Raydium programs
-    'routeUGWgWzqBWFcrCfv8tritsqukccJPu3q5GPP3xS',
-    '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8',
-    '5quBtoiQqxF9Jv6KYKctB59NT3gtJD2Y65kdnB1Uev3h',
-    '27haf8L6oxUeXrHrgEgsexjSY5hbVUWEmvv9Nyxg8vQv',
-    'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK',
-    // LaunchLab
-    'LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj',
-    // Quote mints
+  // Check for various initialize instruction patterns
+  const initPatterns = [
+    'Instruction: Initialize',
+    'initialize_v2',
+    'Program log: initialize',
+    'InitializePool',
+    'CreatePool',
+    'Program log: Instruction: Create',
+  ]
+  
+  for (const pattern of initPatterns) {
+    if (fullLog.includes(pattern)) {
+      isNewPool = true
+      break
+    }
+  }
+  
+  // If no init pattern found, check if this is a LaunchLab program invocation with token creation
+  if (!isNewPool) {
+    // Check if LaunchLab program was invoked successfully
+    const hasLaunchLabInvoke = fullLog.includes(SNIPER_PROGRAMS.RAYDIUM_LAUNCHLAB)
+    const hasSuccess = fullLog.includes('Program log: Instruction:') || fullLog.includes('success')
+    if (hasLaunchLabInvoke && hasSuccess) {
+      isNewPool = true
+    }
+  }
+  
+  // Extract all potential Solana addresses (base58, 32-44 chars)
+  const addressRegex = /[1-9A-HJ-NP-Za-km-z]{32,44}/g
+  const allAddresses = fullLog.match(addressRegex) || []
+  
+  // Filter out known addresses to find the new token mint
+  const knownAddresses = [
+    SNIPER_PROGRAMS.RAYDIUM_LAUNCHLAB,
     SNIPER_PROGRAMS.USD1_MINT,
     SNIPER_PROGRAMS.WSOL_MINT,
-    // BONK platform
+    SNIPER_PROGRAMS.SPL_TOKEN,
     SNIPER_PROGRAMS.BONK_PLATFORM,
-    // Jupiter
-    'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4',
-    'JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB',
-    // Flash loan programs
-    'FLASHX8DrLbgeR8FcfNV1F5krxYcYMUdBkrP1EPBtxB9',
-    'FL1Xhi3FakNPUgKwn2EPkf1Bqg3YPXAE8NwBCfkF6d7o',
-    // Pump.fun
-    '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P',
-    // Memo
-    'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
-    'Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo',
-    // Native loader
-    'NativeLoader1111111111111111111111111111111',
-  ])
+    'TokenkegQfeZyiNwAJbNY5vgNBH4DQ3TonLk17nRba62L', // Token Program
+    '11111111111111111111111111111111', // System Program
+    'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL', // Associated Token
+  ]
   
-  // Check for SPECIFIC LaunchLab pool creation patterns
-  // LaunchLab logs "Instruction: Initialize" or similar when creating a new pool
-  const isInitializeInstruction = logs.some(log => {
-    // Must be a LaunchLab program log with Initialize instruction
-    return (
-      log.includes('Program log: Instruction: Initialize') ||
-      log.includes('Program log: initialize_v2') ||
-      log.includes('Program log: InitializePool') ||
-      log.includes('Program log: CreatePool') ||
-      // LaunchLab specific pattern
-      (log.includes('LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj') && 
-       log.includes('Instruction: Initialize'))
-    )
-  })
-  
-  // Also check for successful pool creation completion
-  const hasPoolCreationSuccess = logs.some(log => 
-    log.includes('Program LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj success') ||
-    log.includes('Program log: Pool initialized')
-  )
-  
-  // Must have BOTH the initialize instruction AND successful completion
-  // to avoid false positives from failed transactions or other operations
-  if (isInitializeInstruction && hasPoolCreationSuccess) {
-    isNewPool = true
-  }
-  
-  // If not a new pool, return early - don't waste time parsing
-  if (!isNewPool) {
-    return { isNewPool, tokenMint, quoteMint, creator }
-  }
-  
-  // Extract addresses from logs - look for specific patterns
-  // Token mints are typically logged in specific formats
-  const addressRegex = /[1-9A-HJ-NP-Za-km-z]{32,44}/g
-  
-  // Look for token mint in specific log patterns first
-  for (const log of logs) {
-    // Pattern: "mint: <address>" or "token_mint: <address>"
-    const mintMatch = log.match(/(?:mint|token_mint|token|base_mint)[:\s]+([1-9A-HJ-NP-Za-km-z]{32,44})/i)
-    if (mintMatch && !SYSTEM_ADDRESSES.has(mintMatch[1])) {
-      tokenMint = mintMatch[1]
-      break
-    }
-    
-    // Pattern: "Program log: <address>" where address is the mint
-    // LaunchLab often logs the mint address directly
-    if (log.startsWith('Program log: ') && !log.includes('Instruction')) {
-      const addresses = log.match(addressRegex) || []
-      for (const addr of addresses) {
-        if (!SYSTEM_ADDRESSES.has(addr) && addr.length >= 32 && addr.length <= 44) {
-          // Validate it looks like a proper Solana address (not a truncated one)
-          // Skip addresses that are obviously wrong (all 1s, all As, etc.)
-          if (!/^[1A]{30,}/.test(addr) && !/^[1-9]{30,}/.test(addr)) {
-            tokenMint = addr
-            break
-          }
-        }
-      }
-      if (tokenMint) break
-    }
-  }
-  
-  // If still no token mint found, scan all logs but be more selective
-  if (!tokenMint) {
-    const allAddresses = fullLog.match(addressRegex) || []
-    const uniqueAddresses = [...new Set(allAddresses)]
-    
-    for (const addr of uniqueAddresses) {
-      // Skip system addresses
-      if (SYSTEM_ADDRESSES.has(addr)) continue
-      
-      // Skip addresses that look like programs (end in specific patterns)
-      if (addr.endsWith('11111111111111111111111')) continue
-      if (addr.startsWith('111111111')) continue
-      
-      // Skip very short or malformed addresses
-      if (addr.length < 32) continue
-      
-      // This is likely the token mint
+  for (const addr of allAddresses) {
+    if (!knownAddresses.includes(addr) && !tokenMint) {
+      // This could be the new token mint
       tokenMint = addr
-      break
-    }
-  }
-  
-  // Validate token mint - must be a valid Solana address format
-  if (tokenMint) {
-    // Final validation - ensure it's not a system address that we missed
-    if (SYSTEM_ADDRESSES.has(tokenMint) || 
-        tokenMint.includes('1111111111') ||
-        tokenMint.startsWith('ComputeBudget') ||
-        tokenMint.startsWith('Token') ||
-        tokenMint.startsWith('FLASH')) {
-      tokenMint = null
-      isNewPool = false // If we can't find a valid token mint, it's not a valid pool creation
     }
   }
   
@@ -655,8 +548,8 @@ export function parselaunchLabLog(logs: string[] | undefined | null): {
   
   // Try to extract creator from logs
   for (const log of logs) {
-    const creatorMatch = log.match(/(?:creator|authority|payer|user)[:\s]+([1-9A-HJ-NP-Za-km-z]{32,44})/i)
-    if (creatorMatch && !creator && !SYSTEM_ADDRESSES.has(creatorMatch[1])) {
+    const creatorMatch = log.match(/(?:creator|authority|owner|signer)[:\s]+([1-9A-HJ-NP-Za-km-z]{32,44})/i)
+    if (creatorMatch && !creator) {
       creator = creatorMatch[1]
     }
   }
@@ -666,7 +559,6 @@ export function parselaunchLabLog(logs: string[] | undefined | null): {
 
 /**
  * Parse Pump.fun log to detect new token creation
- * Only returns true for actual token CREATION events, not trades/buys/sells
  */
 export function parsePumpFunLog(logs: string[] | undefined | null): {
   isNewToken: boolean
@@ -682,88 +574,55 @@ export function parsePumpFunLog(logs: string[] | undefined | null): {
     return { isNewToken, tokenMint, creator }
   }
   
-  const fullLog = logs.join('\n')
+  const fullLog = logs.join(' ')
   
-  // Known system/program addresses to EXCLUDE
-  const SYSTEM_ADDRESSES = new Set([
-    'ComputeBudget111111111111111111111111111111',
-    '11111111111111111111111111111111',
-    'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-    'TokenkegQfeZyiNwAJbNY5vgNBH4DQ3TonLk17nRba62L',
-    'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
-    'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
-    'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s',
+  // Check for Create instruction patterns
+  const createPatterns = [
+    'Instruction: Create',
+    'Program log: create',
+    'CreateToken',
+    'Program log: Instruction: Create',
+    'create_token',
+  ]
+  
+  for (const pattern of createPatterns) {
+    if (fullLog.toLowerCase().includes(pattern.toLowerCase())) {
+      isNewToken = true
+      break
+    }
+  }
+  
+  // If Pump.fun program invoked, likely a token operation
+  if (!isNewToken && fullLog.includes(SNIPER_PROGRAMS.PUMP_FUN)) {
+    // Check for successful execution
+    if (fullLog.includes('Program log:') && !fullLog.includes('Error')) {
+      isNewToken = true
+    }
+  }
+  
+  // Extract all potential addresses
+  const addressRegex = /[1-9A-HJ-NP-Za-km-z]{32,44}/g
+  const allAddresses = fullLog.match(addressRegex) || []
+  
+  const knownAddresses = [
     SNIPER_PROGRAMS.PUMP_FUN,
     SNIPER_PROGRAMS.WSOL_MINT,
-    'SysvarRent111111111111111111111111111111111',
-    'SysvarC1ock11111111111111111111111111111111',
-    'FLASHX8DrLbgeR8FcfNV1F5krxYcYMUdBkrP1EPBtxB9',
-    'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
-    'Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo',
-  ])
+    SNIPER_PROGRAMS.SPL_TOKEN,
+    'TokenkegQfeZyiNwAJbNY5vgNBH4DQ3TonLk17nRba62L',
+    '11111111111111111111111111111111',
+    'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
+  ]
   
-  // Check for SPECIFIC Pump.fun token creation patterns
-  // Must have "create" instruction AND successful completion
-  const hasCreateInstruction = logs.some(log => 
-    log.includes('Program log: Instruction: Create') ||
-    log.includes('Program log: create_token') ||
-    log.includes('Program log: CreateToken')
-  )
-  
-  const hasSuccess = logs.some(log => 
-    log.includes(`Program ${SNIPER_PROGRAMS.PUMP_FUN} success`)
-  )
-  
-  // Both conditions must be met
-  if (hasCreateInstruction && hasSuccess) {
-    isNewToken = true
-  }
-  
-  // If not a new token, return early
-  if (!isNewToken) {
-    return { isNewToken, tokenMint, creator }
-  }
-  
-  // Extract token mint from logs
-  const addressRegex = /[1-9A-HJ-NP-Za-km-z]{32,44}/g
-  
-  // Look for mint in specific patterns first
-  for (const log of logs) {
-    const mintMatch = log.match(/(?:mint|token)[:\s]+([1-9A-HJ-NP-Za-km-z]{32,44})/i)
-    if (mintMatch && !SYSTEM_ADDRESSES.has(mintMatch[1])) {
-      tokenMint = mintMatch[1]
-      break
-    }
-  }
-  
-  // If no specific mint found, scan all addresses
-  if (!tokenMint) {
-    const allAddresses = fullLog.match(addressRegex) || []
-    const uniqueAddresses = [...new Set(allAddresses)]
-    
-    for (const addr of uniqueAddresses) {
-      if (SYSTEM_ADDRESSES.has(addr)) continue
-      if (addr.includes('1111111111')) continue
-      if (addr.length < 32) continue
-      if (addr.startsWith('ComputeBudget')) continue
-      if (addr.startsWith('Token')) continue
-      if (addr.startsWith('FLASH')) continue
-      
+  for (const addr of allAddresses) {
+    if (!knownAddresses.includes(addr) && !tokenMint) {
       tokenMint = addr
-      break
     }
-  }
-  
-  // Validate token mint
-  if (tokenMint && (SYSTEM_ADDRESSES.has(tokenMint) || tokenMint.includes('1111111111'))) {
-    tokenMint = null
-    isNewToken = false
   }
   
   // Extract creator
   for (const log of logs) {
-    const creatorMatch = log.match(/(?:creator|user|payer)[:\s]+([1-9A-HJ-NP-Za-km-z]{32,44})/i)
-    if (creatorMatch && !creator && !SYSTEM_ADDRESSES.has(creatorMatch[1])) {
+    const creatorMatch = log.match(/(?:creator|user|owner)[:\s]+([1-9A-HJ-NP-Za-km-z]{32,44})/i)
+    if (creatorMatch && !creator) {
       creator = creatorMatch[1]
     }
   }
