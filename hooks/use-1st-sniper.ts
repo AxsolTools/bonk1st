@@ -27,6 +27,7 @@ const STORAGE_KEYS = {
   CONFIG: 'bonk1st_sniper_config',
   HISTORY: 'bonk1st_snipe_history',
   STATS: 'bonk1st_session_stats',
+  NEW_TOKENS: 'bonk1st_new_tokens',
 }
 
 // Generate unique ID
@@ -159,6 +160,30 @@ export function use1stSniper() {
       localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(history.slice(-100))) // Keep last 100
     }
   }, [history])
+  
+  // Load detected tokens from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.NEW_TOKENS)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        // Filter out tokens older than 24 hours
+        const recentTokens = parsed.filter((t: NewTokenEvent) => 
+          Date.now() - t.creationTimestamp < 24 * 60 * 60 * 1000
+        )
+        setNewTokens(recentTokens)
+      }
+    } catch (error) {
+      console.error('[BONK1ST] Failed to load detected tokens:', error)
+    }
+  }, [])
+  
+  // Save detected tokens to localStorage
+  useEffect(() => {
+    if (newTokens.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.NEW_TOKENS, JSON.stringify(newTokens.slice(-50))) // Keep last 50
+    }
+  }, [newTokens])
   
   // Fetch token metadata from existing backend APIs
   // /api/token/[address]/metadata - for symbol, name, logo (uses Helius DAS + DexScreener)

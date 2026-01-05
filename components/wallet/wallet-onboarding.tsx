@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { useAuth } from "@/components/providers/auth-provider"
 import { Input } from "@/components/ui/input"
@@ -40,8 +41,14 @@ interface ImportedWallet {
 }
 
 export function WalletOnboarding() {
+  const pathname = usePathname()
   const { isOnboarding, setIsOnboarding, refreshWallets, userId, setUserId, wallets } = useAuth()
   const [step, setStep] = useState<OnboardingStep>("choice")
+  
+  // Don't render on /1st routes - they use WalletOnboarding1st with gold theme
+  if (pathname?.startsWith('/1st')) {
+    return null
+  }
   
   // Multi-wallet generation
   const [walletCount, setWalletCount] = useState(1)
