@@ -308,19 +308,6 @@ export function TokenDashboard({ address }: TokenDashboardProps) {
 
   return (
     <div className="space-y-4">
-      {/* External token banner */}
-      {isExternal && (
-        <div className="glass-panel px-4 py-3 border border-amber-500/25 bg-amber-500/5 flex items-center gap-3">
-          <svg className="w-5 h-5 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.7">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div>
-            <p className="text-sm font-medium text-amber-400">External Token</p>
-            <p className="text-xs text-amber-400/70">This token was not created on PROPEL. Some features may be limited.</p>
-          </div>
-        </div>
-      )}
-
       {/* Pour effect overlay - only for platform tokens */}
       {!isExternal && (
         <TokenPourOverlay tokenId={token.id} tokenSymbol={token.symbol} creatorWallet={token.creator_wallet || ""} />
@@ -329,16 +316,16 @@ export function TokenDashboard({ address }: TokenDashboardProps) {
       {/* Token Header */}
       <TokenHeader token={token} />
 
-      {/* Token Cage (Redesigned): Chart + Trade + Tape + Intel */}
+      {/* Token Layout: Redesigned for better UX */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        {/* Left: Chart + Tape */}
-        <div className="xl:col-span-8 space-y-4">
+        {/* Left Column: Chart + Transaction History */}
+        <div className="xl:col-span-7 space-y-4">
           <TokenChart mintAddress={token.mint_address} tokenSymbol={token.symbol} />
           <TransactionHistory tokenAddress={token.mint_address} tokenId={token.id} />
         </div>
 
-        {/* Right: Trade + Intel */}
-        <div className="xl:col-span-4 space-y-4">
+        {/* Right Column: Trade Panel + Token Info + Metrics */}
+        <div className="xl:col-span-5 space-y-4">
           <TradePanel token={token} />
           <TokenInfo token={token} />
           {!isExternal && <MetricsGrid token={token} isToken22={isToken22} />}

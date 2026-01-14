@@ -1032,7 +1032,10 @@ export function TradePanel({ token }: TradePanelProps) {
 
       {/* Trade button */}
       {!isAuthenticated ? (
-        <button onClick={() => setIsOnboarding(true)} className="btn-primary w-full">
+        <button 
+          onClick={() => setIsOnboarding(true)} 
+          className="w-full px-6 py-4 rounded-xl font-bold text-base transition-all bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-black hover:from-[#FFD700] hover:to-[#D4AF37] shadow-lg shadow-[#D4AF37]/25 hover:shadow-[#D4AF37]/40"
+        >
           Connect Wallet to Trade
         </button>
       ) : (
