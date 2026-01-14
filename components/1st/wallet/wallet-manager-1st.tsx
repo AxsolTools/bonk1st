@@ -11,12 +11,11 @@ import { GoldInput } from "../ui/gold-input"
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js"
 import { toast } from "sonner"
 
-interface WalletWithBalance extends {
+interface WalletWithBalance {
   id: string
   public_key: string
   label: string
   is_primary: boolean
-} {
   solBalance?: number
   isLoading?: boolean
 }
