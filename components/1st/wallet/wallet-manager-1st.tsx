@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import Image from "next/image"
 import { useAuth } from "@/components/providers/auth-provider"
 import { cn } from "@/lib/utils"
 import { GoldCard } from "../ui/gold-card"
@@ -10,6 +11,28 @@ import { GoldBadge } from "../ui/gold-badge"
 import { GoldInput } from "../ui/gold-input"
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js"
 import { toast } from "sonner"
+
+// Sniper recoil animation - same as header logo
+const sniperRecoilAnimation = {
+  animate: {
+    scale: [1, 1.08, 0.97, 1.02, 1],
+    x: [0, -2, 1, -0.5, 0],
+    rotate: [0, -1, 0.5, -0.2, 0],
+    filter: [
+      'drop-shadow(0 0 8px rgba(212,175,55,0.4))',
+      'drop-shadow(0 0 15px rgba(255,215,0,0.8))',
+      'drop-shadow(0 0 6px rgba(212,175,55,0.3))',
+      'drop-shadow(0 0 10px rgba(212,175,55,0.5))',
+      'drop-shadow(0 0 8px rgba(212,175,55,0.4))',
+    ],
+  },
+  transition: {
+    duration: 2.5,
+    ease: [0.25, 0.1, 0.25, 1],
+    repeat: Infinity,
+    repeatDelay: 1.5,
+  },
+}
 
 interface WalletWithBalance {
   id: string
@@ -274,7 +297,20 @@ export function WalletManager1st() {
                 {/* Welcome message for first-time users */}
                 {existingWalletCount === 0 && (
                   <div className="text-center mb-6">
-                    <div className="text-4xl mb-3">🎯</div>
+                    <motion.div 
+                      className="inline-block mb-4"
+                      animate={sniperRecoilAnimation.animate}
+                      transition={sniperRecoilAnimation.transition}
+                    >
+                      <Image
+                        src="/1st-logo.png"
+                        alt="BONK1ST"
+                        width={64}
+                        height={64}
+                        className="object-contain"
+                        priority
+                      />
+                    </motion.div>
                     <h3 className="text-xl font-bold text-[#FFD700] mb-2">wanna be first?</h3>
                     <p className="text-sm text-white/60">Create or import a wallet to start sniping</p>
                   </div>
