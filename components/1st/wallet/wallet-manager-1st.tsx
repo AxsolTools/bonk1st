@@ -63,6 +63,13 @@ export function WalletManager1st() {
   const existingWalletCount = wallets?.length || 0
   const maxNewWallets = Math.min(5, 25 - existingWalletCount)
 
+  // Auto-show generate step if no wallets exist
+  React.useEffect(() => {
+    if (showWalletManager && wallets && wallets.length === 0 && step === "overview") {
+      // No wallets yet, stay on overview to show generate/import options
+    }
+  }, [showWalletManager, wallets, step])
+
   // Fetch balances for all wallets
   React.useEffect(() => {
     if (!showWalletManager || !wallets || wallets.length === 0) return
@@ -264,6 +271,15 @@ export function WalletManager1st() {
                 exit={{ opacity: 0, x: 20 }}
                 className="space-y-4"
               >
+                {/* Welcome message for first-time users */}
+                {existingWalletCount === 0 && (
+                  <div className="text-center mb-6">
+                    <div className="text-4xl mb-3">🎯</div>
+                    <h3 className="text-xl font-bold text-[#FFD700] mb-2">wanna be first?</h3>
+                    <p className="text-sm text-white/60">Create or import a wallet to start sniping</p>
+                  </div>
+                )}
+
                 {/* Action Buttons */}
                 <div className="grid grid-cols-2 gap-3 mb-6">
                   <GoldButton
@@ -290,7 +306,8 @@ export function WalletManager1st() {
                   </GoldButton>
                 </div>
 
-                {/* Wallet List */}
+                {/* Wallet List - only show if wallets exist */}
+                {existingWalletCount > 0 && (
                 <div className="space-y-2">
                   {walletsWithBalances.map((wallet) => (
                     <div
@@ -334,6 +351,7 @@ export function WalletManager1st() {
                     </div>
                   ))}
                 </div>
+                )}
               </motion.div>
             )}
 

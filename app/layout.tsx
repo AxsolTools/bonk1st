@@ -5,7 +5,6 @@ import "./globals.css"
 import "@/components/1st/theme/gold-theme.css"
 import { AuthProvider } from "@/components/providers/auth-provider"
 import { FirstHeader, FirstFooter } from "@/components/1st/layout/1st-header"
-import { WalletOnboardingSimple1st } from "@/components/1st/wallet/wallet-onboarding-simple-1st"
 import { WalletManager1st } from "@/components/1st/wallet/wallet-manager-1st"
 
 const spaceGrotesk = Space_Grotesk({
@@ -126,8 +125,7 @@ export default function RootLayout({
             {/* Footer Status Bar */}
             <FirstFooter />
             
-            {/* Wallet Modals */}
-            <WalletOnboardingSimple1st />
+            {/* Wallet Manager - handles all wallet operations */}
             <WalletManager1st />
           </div>
         </AuthProvider>

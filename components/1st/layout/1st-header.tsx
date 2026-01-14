@@ -211,7 +211,7 @@ export function FirstHeader() {
               <GoldButton 
                 variant="primary" 
                 size="sm"
-                onClick={() => setIsOnboarding(true)}
+                onClick={() => setShowWalletManager(true)}
               >
                 CONNECT
               </GoldButton>
