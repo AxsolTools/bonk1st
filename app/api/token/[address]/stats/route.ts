@@ -29,12 +29,23 @@ interface TokenStats {
   isMigrated: boolean
 }
 
+// Simple 10-second cache to prevent duplicate API calls
+const cache = new Map<string, { data: TokenStats; time: number }>()
+const CACHE_TIME = 10000 // 10 seconds
+
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ address: string }> }
 ) {
   try {
     const { address } = await context.params
+    
+    // Check cache first (10-second TTL)
+    const cached = cache.get(address)
+    if (cached && Date.now() - cached.time < CACHE_TIME) {
+      console.log(`[TOKEN-STATS] ✓ Cache hit: ${address.slice(0, 12)}... (saved 4 RPC calls)`)
+      return NextResponse.json({ success: true, data: cached.data, cached: true })
+    }
     
     console.log(`[TOKEN-STATS] ========== START ==========`)
     console.log(`[TOKEN-STATS] Fetching stats for: ${address}`)
@@ -98,6 +109,9 @@ export async function GET(
     
     console.log(`[TOKEN-STATS] Final stats:`, stats)
     console.log(`[TOKEN-STATS] ========== END ==========`)
+
+    // Cache for 10 seconds
+    cache.set(address, { data: stats, time: Date.now() })
 
     // Update database with fresh values (async)
     updateDatabaseStats(address, stats)
