@@ -145,37 +145,6 @@ export function FirstHeader() {
           
           {/* Right Side - Status & Wallet */}
           <div className="flex items-center gap-4">
-            {/* DEX Links */}
-            <div className="hidden sm:flex items-center gap-2">
-              <a
-                href="https://pump.fun/coin/DYBvk2VrsnvS68REkbxULbMGcoQn6pCpWK7Bnrw5bonk"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 hover:border-[#D4AF37]/50 flex items-center justify-center transition-all hover:bg-white/10"
-                title="View on Pump.fun"
-              >
-                <svg width="18" height="18" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M21.8855 184.247C-2.01603 162.076 -3.41853 124.726 18.753 100.824L94.7609 18.8855C116.932 -5.01605 154.282 -6.41855 178.184 15.7529C202.085 37.9244 203.488 75.274 181.316 99.1756L105.308 181.115C83.1367 205.016 45.7871 206.419 21.8855 184.247Z" fill="white"/>
-                  <path fillRule="evenodd" clipRule="evenodd" d="M18.753 100.824C-3.41853 124.726 -2.01603 162.076 21.8855 184.247C45.7871 206.419 83.1367 205.016 105.308 181.115L145.81 137.452L59.2549 57.1621L18.753 100.824ZM40.6908 123.847C41.4209 122.946 41.2828 121.625 40.3824 120.895C39.482 120.165 38.1603 120.303 37.4302 121.203L34.9463 124.267C34.2162 125.167 34.3543 126.489 35.2547 127.219C36.1551 127.949 37.4768 127.811 38.2068 126.91L40.6908 123.847ZM34.5525 135.781C34.7653 134.641 34.014 133.545 32.8745 133.332C31.735 133.12 30.6388 133.871 30.4261 135.01C29.2814 141.142 29.7013 147.239 31.4916 152.718C31.8516 153.82 33.0367 154.421 34.1385 154.061C35.2404 153.701 35.8417 152.516 35.4816 151.414C33.9159 146.623 33.5335 141.24 34.5525 135.781ZM39.6257 160.27C38.8184 159.438 37.4897 159.418 36.6578 160.225C35.8259 161.032 35.8059 162.361 36.6131 163.193L40.0892 166.775C40.8964 167.607 42.2252 167.627 43.0571 166.82C43.889 166.013 43.909 164.684 43.1018 163.852L39.6257 160.27Z" fill="#5FCB88"/>
-                </svg>
-              </a>
-              <a
-                href="https://bonk.fun/token/DYBvk2VrsnvS68REkbxULbMGcoQn6pCpWK7Bnrw5bonk"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 hover:border-[#D4AF37]/50 flex items-center justify-center transition-all hover:bg-white/10"
-                title="View on Bonk.fun"
-              >
-                <Image
-                  src="/bonk_fun.png"
-                  alt="Bonk.fun"
-                  width={18}
-                  height={18}
-                  className="rounded"
-                />
-              </a>
-            </div>
-            
             {/* Connection Status */}
             <div className="hidden sm:flex items-center gap-2">
               <GoldBadge variant="success" size="xs" dot pulse>
