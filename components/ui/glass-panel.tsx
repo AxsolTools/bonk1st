@@ -25,8 +25,8 @@ export function GlassPanel({
   return (
     <motion.div 
       className={cn(
-        "relative rounded-xl bg-[var(--bg-card)] transition-all duration-300",
-        showBorder && "border border-[var(--border-subtle)]",
+        "glass-panel relative transition-all duration-300",
+        showBorder && "",
         className
       )}
       initial={{ opacity: 0, y: 8 }}
@@ -36,7 +36,7 @@ export function GlassPanel({
       {/* Content */}
       <div className="relative">
         {(title || subtitle) && (
-          <div className="px-5 py-4 border-b border-[var(--border-subtle)]">
+          <div className="px-5 py-4 border-b border-[var(--border-subtle)] reef-header-line">
             {title && (
               <h3 className="text-base font-semibold text-[var(--text-primary)]">{title}</h3>
             )}

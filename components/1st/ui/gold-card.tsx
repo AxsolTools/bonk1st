@@ -20,10 +20,12 @@ const GoldCard = React.forwardRef<HTMLDivElement, GoldCardProps>(
     children, 
     ...props 
   }, ref) => {
+    const notch = variant === 'terminal' ? 10 : variant === 'highlight' ? 16 : 14
     const baseStyles = `
       relative overflow-hidden
       backdrop-blur-xl
       transition-all duration-300 ease-out
+      rounded-none
     `
     
     const variants = {
@@ -31,7 +33,6 @@ const GoldCard = React.forwardRef<HTMLDivElement, GoldCardProps>(
         bg-[#0A0A0A]/90
         border border-[#D4AF37]/15
         hover:border-[#D4AF37]/30
-        rounded-xl
       `,
       elevated: `
         bg-gradient-to-b from-[#111111] to-[#0A0A0A]
@@ -39,12 +40,10 @@ const GoldCard = React.forwardRef<HTMLDivElement, GoldCardProps>(
         hover:border-[#D4AF37]/40
         shadow-[0_8px_32px_rgba(0,0,0,0.6)]
         hover:shadow-[0_12px_40px_rgba(0,0,0,0.7),0_0_20px_rgba(212,175,55,0.1)]
-        rounded-xl
       `,
       terminal: `
         bg-[#000000]
         border border-[#D4AF37]/30
-        rounded-lg
         font-mono
         shadow-[inset_0_0_30px_rgba(0,0,0,0.8)]
       `,
@@ -54,21 +53,18 @@ const GoldCard = React.forwardRef<HTMLDivElement, GoldCardProps>(
         hover:border-[#D4AF37]/60
         shadow-[0_0_30px_rgba(212,175,55,0.15)]
         hover:shadow-[0_0_40px_rgba(212,175,55,0.25)]
-        rounded-xl
       `,
       danger: `
         bg-gradient-to-br from-[#1A0A0A] to-[#0A0A0A]
         border border-[#FF3333]/30
         hover:border-[#FF3333]/50
         shadow-[0_0_20px_rgba(255,51,51,0.1)]
-        rounded-xl
       `,
       success: `
         bg-gradient-to-br from-[#0A1A0A] to-[#0A0A0A]
         border border-[#00FF41]/30
         hover:border-[#00FF41]/50
         shadow-[0_0_20px_rgba(0,255,65,0.1)]
-        rounded-xl
       `,
     }
     
@@ -93,6 +89,9 @@ const GoldCard = React.forwardRef<HTMLDivElement, GoldCardProps>(
           padding,
           className
         )}
+        style={{
+          clipPath: `polygon(${notch}px 0%, calc(100% - ${notch}px) 0%, 100% ${notch}px, 100% calc(100% - ${notch}px), calc(100% - ${notch}px) 100%, ${notch}px 100%, 0% calc(100% - ${notch}px), 0% ${notch}px)`,
+        }}
         {...props}
       >
         {children}
@@ -110,6 +109,12 @@ const GoldCard = React.forwardRef<HTMLDivElement, GoldCardProps>(
               className="absolute bottom-0 right-0 w-8 h-8 pointer-events-none"
               style={{
                 background: 'linear-gradient(-45deg, rgba(212,175,55,0.2) 0%, transparent 50%)',
+              }}
+            />
+            <div
+              className="absolute left-0 right-0 top-[46px] h-px pointer-events-none opacity-80"
+              style={{
+                background: 'linear-gradient(90deg, transparent, rgba(212,175,55,0.35), rgba(255,255,255,0.05), transparent)',
               }}
             />
           </>

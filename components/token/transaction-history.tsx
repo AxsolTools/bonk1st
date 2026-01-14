@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { createClient } from "@/lib/supabase/client"
 import { GlassPanel } from "@/components/ui/glass-panel"
 import { cn } from "@/lib/utils"
-import { useLogsSubscription, useHeliusWebSocketState, useHeliusConnect } from "@/hooks/use-helius-websocket"
+import { useLogsSubscription, useWebSocketState, useWebSocketConnect } from "@/hooks/use-helius-websocket"
 import { tradeEvents, type TradeEvent } from "@/lib/events/trade-events"
 
 interface Transaction {
@@ -31,8 +31,8 @@ export function TransactionHistory({ tokenAddress, tokenId }: TransactionHistory
   const hasInitializedWs = useRef(false)
   
   // WebSocket state for UI indicator
-  const wsState = useHeliusWebSocketState()
-  const { connect } = useHeliusConnect()
+  const wsState = useWebSocketState()
+  const { connect } = useWebSocketConnect()
   
   // Initialize WebSocket connection on mount (fix deadlock)
   useEffect(() => {
@@ -90,7 +90,7 @@ export function TransactionHistory({ tokenAddress, tokenId }: TransactionHistory
       const isBuy = parseIsBuyFromLogs(logArray)
       const solAmount = parseSolAmountFromLogs(logArray)
       
-      // Immediately add to UI as pending (no waiting for Helius indexing!)
+      // Immediately add to UI as pending (no waiting for indexing!)
       if (signature && (isBuy !== null || solAmount > 0)) {
         const newTx: Transaction = {
           signature,

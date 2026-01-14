@@ -284,7 +284,7 @@ export function FirstFooter() {
                 )}
               />
               <span className={statusColors[wsStatus]}>
-                {wsStatus === 'connected' ? 'HELIUS WS' : 
+                {wsStatus === 'connected' ? 'LIVE WS' : 
                  wsStatus === 'connecting' ? 'CONNECTING...' : 'DISCONNECTED'}
               </span>
             </div>

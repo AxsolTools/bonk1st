@@ -8,8 +8,6 @@ import { MetricsGrid } from "@/components/token/metrics-grid"
 import { LiveFeed } from "@/components/token/live-feed"
 import { TokenInfo } from "@/components/token/token-info"
 import { TransactionHistory } from "@/components/token/transaction-history"
-import { BoostSection } from "@/components/token/boost-section"
-import { VoteBoostPanel } from "@/components/token/vote-boost-panel"
 import { DemoPourEffect } from "@/components/visuals/demo-pour-effect"
 
 export default function DemoTokenPage() {
@@ -102,7 +100,7 @@ export default function DemoTokenPage() {
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mt-4">
             {/* Chart & Live Feed */}
             <div className="xl:col-span-2 space-y-4">
-              <div className="glass-panel-elevated p-4 rounded-lg h-[400px] flex items-center justify-center">
+              <div className="glass-panel-elevated p-4 h-[400px] flex items-center justify-center">
                 <div className="text-center">
                   <svg
                     width="48"
@@ -133,12 +131,6 @@ export default function DemoTokenPage() {
           {/* Metrics */}
           <div className="mt-4">
             <MetricsGrid token={mockToken} />
-          </div>
-
-          {/* Community */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-            <VoteBoostPanel tokenAddress={mockToken.mint_address} />
-            <BoostSection tokenAddress={mockToken.mint_address} />
           </div>
 
           {/* Transaction History */}

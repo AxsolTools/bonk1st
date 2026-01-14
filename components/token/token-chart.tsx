@@ -27,9 +27,9 @@ export function TokenChart({ mintAddress, tokenSymbol }: TokenChartProps) {
   console.log(`[DEBUG] TokenChart rendering:`, { mintAddress, tokenSymbol, chartUrl })
 
   return (
-    <div className="glass-panel-elevated p-0 rounded-lg overflow-hidden">
+    <div className="glass-panel-elevated p-0 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-[var(--border-subtle)]">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)] reef-header-line">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           {tokenSymbol ? `${tokenSymbol} Chart` : "Trading Chart"}
         </h3>

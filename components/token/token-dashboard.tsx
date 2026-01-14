@@ -9,14 +9,9 @@ import { TradePanel } from "@/components/token/trade-panel"
 import { MetricsGrid } from "@/components/token/metrics-grid"
 import { TokenInfo } from "@/components/token/token-info"
 import { TransactionHistory } from "@/components/token/transaction-history"
-import { BoostSection } from "@/components/token/boost-section"
-import { VoteBoostPanel } from "@/components/token/vote-boost-panel"
 import { TokenPourOverlay } from "@/components/token/token-pour-overlay"
-import { TokenChat } from "@/components/token/token-chat"
-import { TokenComments } from "@/components/token/token-comments"
 import { Token22SettingsPanel } from "@/components/dashboard/token22-settings-panel"
 import { TokenParametersPanel } from "@/components/dashboard/token-parameters-panel"
-import { VolumeBotQuickControls } from "@/components/token/volume-bot-quick-controls"
 import { useAuth } from "@/components/providers/auth-provider"
 import Link from "next/link"
 
@@ -312,12 +307,12 @@ export function TokenDashboard({ address }: TokenDashboardProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* External token banner */}
       {isExternal && (
-        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-3">
-          <svg className="w-5 h-5 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <div className="glass-panel px-4 py-3 border border-amber-500/25 bg-amber-500/5 flex items-center gap-3">
+          <svg className="w-5 h-5 text-amber-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.7">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
             <p className="text-sm font-medium text-amber-400">External Token</p>
@@ -334,43 +329,20 @@ export function TokenDashboard({ address }: TokenDashboardProps) {
       {/* Token Header */}
       <TokenHeader token={token} />
 
-      {/* Main Grid: Chart + Trade Panel + Chat */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        {/* Left Side: Chart + Recent Transactions */}
-        <div className="lg:col-span-7 xl:col-span-8 space-y-3">
+      {/* Token Cage (Redesigned): Chart + Trade + Tape + Intel */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        {/* Left: Chart + Tape */}
+        <div className="xl:col-span-8 space-y-4">
           <TokenChart mintAddress={token.mint_address} tokenSymbol={token.symbol} />
           <TransactionHistory tokenAddress={token.mint_address} tokenId={token.id} />
         </div>
 
-        {/* Right Side: Trade Panel + Volume Bot + Live Chat */}
-        <div className="lg:col-span-5 xl:col-span-4 space-y-3">
+        {/* Right: Trade + Intel */}
+        <div className="xl:col-span-4 space-y-4">
           <TradePanel token={token} />
-          <VolumeBotQuickControls 
-            tokenMint={token.mint_address} 
-            tokenSymbol={token.symbol}
-            currentPrice={token.price_sol || 0}
-          />
-          <TokenChat tokenAddress={token.mint_address} />
-        </div>
-      </div>
-
-      {/* Second Row: Token Info + Community */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        <div className="xl:col-span-1">
           <TokenInfo token={token} />
+          {!isExternal && <MetricsGrid token={token} isToken22={isToken22} />}
         </div>
-        <div className="xl:col-span-2">
-          <VoteBoostPanel tokenAddress={token.mint_address} tokenName={token.name} />
-        </div>
-      </div>
-
-      {/* Metrics Row - only for platform tokens */}
-      {!isExternal && <MetricsGrid token={token} isToken22={isToken22} />}
-
-      {/* Comments & Boost Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <TokenComments tokenAddress={token.mint_address} />
-        <BoostSection tokenAddress={token.mint_address} />
       </div>
       
       {/* Creator Settings Panel - only visible to token creator */}

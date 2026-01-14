@@ -136,7 +136,7 @@ export const DEFAULT_SNIPER_CONFIG: SniperConfig = {
   
   // Timing
   snipeBlockZero: false,
-  maxBlockDelay: 5,
+  maxBlockDelay: 3,
   minBlockDelay: 0,
   
   // Entry filters
@@ -149,32 +149,32 @@ export const DEFAULT_SNIPER_CONFIG: SniperConfig = {
   minLiquidityUsd: 1000,
   maxLiquidityUsd: 1000000,
   minMarketCap: 0,
-  maxMarketCap: 500000,
+  maxMarketCap: 300000,
   
   // Execution
-  buyAmountSol: 0.1,
+  buyAmountSol: 0.05,
   buyAmountUsd1: 10,
   useUsd1: true,
-  slippageBps: 1500, // 15% default for volatile new tokens
-  priorityFeeLamports: 100000, // 0.0001 SOL
+  slippageBps: 1200, // 12% default for volatile new tokens
+  priorityFeeLamports: 200000, // 0.0002 SOL
   
   // Auto-sell
   autoSellEnabled: true,
-  takeProfitPercent: 100, // 2x
-  stopLossPercent: 50, // -50%
-  trailingStopEnabled: false,
-  trailingStopPercent: 20,
+  takeProfitPercent: 150, // 2.5x
+  stopLossPercent: 30, // -30%
+  trailingStopEnabled: true,
+  trailingStopPercent: 15,
   sellAfterBlocks: 0,
   sellAfterSeconds: 0,
   sellOnDevSell: false,
   sellPercentOnTrigger: 100,
   
   // Safety
-  maxConcurrentSnipes: 3,
+  maxConcurrentSnipes: 2,
   dailyBudgetSol: 1,
-  maxSingleSnipeSol: 0.5,
+  maxSingleSnipeSol: 0.25,
   emergencyStopEnabled: true,
-  cooldownBetweenSnipes: 5,
+  cooldownBetweenSnipes: 8,
   blacklistTokens: [],
   blacklistCreators: [],
   
@@ -243,6 +243,7 @@ export interface ActiveSnipe {
   tokenName: string
   tokenLogo?: string
   pool: TargetPool
+  creatorWallet?: string
   
   // Entry details
   entryBlock: number

@@ -59,12 +59,14 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { 
+    const {
       action, 
       tokenMint, 
       amount, 
       slippageBps = 500, 
       tokenDecimals = 6,
+      // Priority fee override (lamports)
+      priorityFeeLamports: requestedPriorityFeeLamports,
       // Bonk pool USD1 support
       pool = 'pump',
       quoteMint = QUOTE_MINTS.WSOL,
@@ -81,6 +83,7 @@ export async function POST(request: NextRequest) {
       amount, 
       slippageBps, 
       tokenDecimals,
+      requestedPriorityFeeLamports,
       pool,
       isUsd1Quote,
       autoConvertUsd1,
@@ -186,7 +189,14 @@ export async function POST(request: NextRequest) {
     }
 
     // ========== BALANCE VALIDATION ==========
-    const priorityFeeLamports = solToLamports(0.0001); // Small priority fee
+    // Allow caller to override priority fee (clamped) so sniper can respect user config.
+    const priorityFeeLamports = (() => {
+      const n = typeof requestedPriorityFeeLamports === 'number' ? requestedPriorityFeeLamports : solToLamports(0.0001)
+      // Clamp between 0 and 0.01 SOL
+      const max = solToLamports(0.01)
+      return BigInt(Math.max(0, Math.min(Number(max), Math.floor(n))))
+    })()
+    const priorityFeeSol = Number(priorityFeeLamports) / 1e9
 
     if (action === 'buy') {
       // For USD1 mode without auto-convert: validate USD1 balance
@@ -396,6 +406,7 @@ export async function POST(request: NextRequest) {
           walletKeypair: userKeypair,
           amountSol: actualTradeAmount,
           slippageBps,
+          priorityFee: priorityFeeSol,
           // Pass pool info for Bonk
           pool: isBonkPool ? POOL_TYPES.BONK : POOL_TYPES.PUMP,
           quoteMint: isUsd1Quote ? QUOTE_MINTS.USD1 : QUOTE_MINTS.WSOL,
@@ -415,6 +426,7 @@ export async function POST(request: NextRequest) {
           amountTokens: amount,
           slippageBps,
           tokenDecimals,
+          priorityFee: priorityFeeSol,
           // Pass pool info for Bonk
           pool: isBonkPool ? POOL_TYPES.BONK : POOL_TYPES.PUMP,
           quoteMint: isUsd1Quote ? QUOTE_MINTS.USD1 : QUOTE_MINTS.WSOL,

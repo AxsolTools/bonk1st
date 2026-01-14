@@ -20,6 +20,10 @@ export function SniperDashboard() {
     stats,
     wsConnected,
     setConfig,
+    saveConfig,
+    isConfigDirty,
+    isConfigSaving,
+    lastConfigSavedAt,
     armSniper,
     disarmSniper,
     emergencyStop,
@@ -30,8 +34,8 @@ export function SniperDashboard() {
   
   const [showConfig, setShowConfig] = React.useState(false)
   
-  // Check if Helius API key is configured
-  const hasHeliusKey = !!process.env.NEXT_PUBLIC_HELIUS_API_KEY
+  // Check if the real-time WebSocket key is configured
+  const hasRealtimeKey = !!process.env.NEXT_PUBLIC_HELIUS_API_KEY
   
   // Calculate totals
   const totalUnrealizedPnl = activeSnipes.reduce((sum, s) => sum + s.pnlSol, 0)
@@ -42,13 +46,13 @@ export function SniperDashboard() {
   return (
     <div className="w-full max-w-[1920px] mx-auto px-4 lg:px-8 py-6 space-y-6">
       {/* API Key Warning */}
-      {!hasHeliusKey && (
+      {!hasRealtimeKey && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-center gap-3">
           <div className="text-red-500 text-2xl">⚠️</div>
           <div>
-            <p className="text-red-400 font-semibold">Helius API Key Not Configured</p>
+            <p className="text-red-400 font-semibold">Real-time Key Not Configured</p>
             <p className="text-red-400/70 text-sm">
-              Set <code className="bg-black/30 px-1 rounded">NEXT_PUBLIC_HELIUS_API_KEY</code> in your environment variables to enable real-time token monitoring.
+              Set your WebSocket API key in your environment variables to enable real-time token monitoring.
             </p>
           </div>
         </div>
@@ -224,7 +228,11 @@ export function SniperDashboard() {
             <SniperConfigPanel
               config={config}
               onConfigChange={setConfig}
-              disabled={status === 'armed' || status === 'sniping'}
+              onSave={saveConfig}
+              isDirty={isConfigDirty}
+              isSaving={isConfigSaving}
+              lastSavedAt={lastConfigSavedAt}
+              disabled={status === 'sniping'}
             />
           )}
           
@@ -245,7 +253,7 @@ export function SniperDashboard() {
               <div className="text-center py-6 text-white/40">
                 <p className="text-sm">Waiting for new tokens...</p>
                 <p className="text-xs mt-1">
-                  {wsConnected ? 'WebSocket connected' : 'Connecting to Helius...'}
+                  {wsConnected ? 'WebSocket connected' : 'Connecting...'}
                 </p>
               </div>
             ) : (
@@ -302,7 +310,7 @@ export function SniperDashboard() {
                 )} />
                 <div>
                   <p className="text-sm font-semibold text-white">
-                    {wsConnected ? 'Connected to Helius' : 'Disconnected'}
+                    {wsConnected ? 'Connected' : 'Disconnected'}
                   </p>
                   <p className="text-xs text-white/50">
                     Mainnet WebSocket

@@ -55,7 +55,7 @@ export function TokenHeader({ token, creator }: TokenHeaderProps) {
           return
         }
         
-        // Try our metadata API first (returns logoUri from Helius DAS or DexScreener)
+        // Try our metadata API first (returns logoUri from indexed metadata or DexScreener)
         const metadataResponse = await fetch(`/api/token/${token.mint_address}/metadata`)
         if (metadataResponse.ok) {
           const result = await metadataResponse.json()

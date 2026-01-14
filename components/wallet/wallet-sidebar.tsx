@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useAuth } from "@/components/providers/auth-provider"
 import { cn, formatAddress } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 import { Input } from "@/components/ui/input"
 import { 
   Wallet as WalletIcon,
@@ -218,6 +219,9 @@ export function WalletSidebar({ open, onClose }: WalletSidebarProps) {
   const [swapError, setSwapError] = useState<string | null>(null)
   const [isSwapping, setIsSwapping] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [editingWalletId, setEditingWalletId] = useState<string | null>(null)
+  const [editingLabel, setEditingLabel] = useState<string>("")
+  const [isSavingLabel, setIsSavingLabel] = useState(false)
 
   // Fetch balances for all wallets (SOL and USD1)
   const fetchAllBalances = async () => {
@@ -260,6 +264,34 @@ export function WalletSidebar({ open, onClose }: WalletSidebarProps) {
     const interval = setInterval(fetchAllBalances, 30000)
     return () => clearInterval(interval)
   }, [open, wallets])
+
+  const totalSolAcrossWallets = wallets.reduce((sum, w) => sum + (balances[w.id] || 0), 0)
+  const totalUsd1AcrossWallets = wallets.reduce((sum, w) => sum + (usd1Balances[w.id] || 0), 0)
+
+  const startEditLabel = (walletId: string, currentLabel: string | null) => {
+    setEditingWalletId(walletId)
+    setEditingLabel(currentLabel || "")
+  }
+
+  const cancelEditLabel = () => {
+    setEditingWalletId(null)
+    setEditingLabel("")
+  }
+
+  const saveLabel = async (walletId: string) => {
+    setIsSavingLabel(true)
+    try {
+      const supabase = createClient()
+      const next = editingLabel.trim()
+      await supabase.from("wallets").update({ label: next.length ? next : null }).eq("id", walletId)
+      await refreshWallets()
+      cancelEditLabel()
+    } catch (error) {
+      console.error("[WALLET] Failed to update label:", error)
+    } finally {
+      setIsSavingLabel(false)
+    }
+  }
 
   const handleWithdraw = async (destination: string, amount: number) => {
     if (!withdrawWallet) return
@@ -499,6 +531,25 @@ export function WalletSidebar({ open, onClose }: WalletSidebarProps) {
                 <p className="text-xs uppercase tracking-wider text-[var(--text-muted)] mb-4 font-medium">
                   All Wallets
                 </p>
+                
+                {/* Totals */}
+                <div className="mb-4 glass-panel px-4 py-3 border border-[var(--border-subtle)]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Total Wallet Value</p>
+                      <p className="text-sm font-semibold text-[var(--text-primary)] tabular-nums mt-0.5">
+                        {totalSolAcrossWallets.toFixed(4)} SOL
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">USD1</p>
+                      <p className="text-sm font-semibold text-emerald-400 tabular-nums mt-0.5">
+                        {totalUsd1AcrossWallets.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-3">
                   {wallets.map((wallet, index) => (
                     <motion.div
@@ -515,7 +566,45 @@ export function WalletSidebar({ open, onClose }: WalletSidebarProps) {
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-[var(--text-primary)]">{wallet.label || "Wallet"}</span>
+                          {editingWalletId === wallet.id ? (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={editingLabel}
+                                onChange={(e) => setEditingLabel(e.target.value)}
+                                placeholder="Wallet label"
+                                className="h-8 bg-[var(--bg-input)] border-[var(--border-default)] text-[var(--text-primary)] text-sm"
+                                maxLength={24}
+                              />
+                              <button
+                                onClick={() => saveLabel(wallet.id)}
+                                disabled={isSavingLabel}
+                                className="p-2 rounded-lg border border-[var(--aqua-border)] text-[var(--aqua-primary)] hover:bg-[var(--aqua-bg)] transition-colors disabled:opacity-50"
+                                title="Save label"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={cancelEditLabel}
+                                className="p-2 rounded-lg border border-[var(--glass-border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                                title="Cancel"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="font-medium text-[var(--text-primary)]">{wallet.label || "Wallet"}</span>
+                              <button
+                                onClick={() => startEditLabel(wallet.id, wallet.label)}
+                                className="p-1.5 rounded-lg hover:bg-[var(--glass-bg)] transition-colors text-[var(--text-muted)] hover:text-[var(--aqua-primary)]"
+                                title="Rename"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                  <path d="M9.8 3.2l3 3M2.8 13.2l3.7-.6 7.1-7.1a1.4 1.4 0 000-2l-.1-.1a1.4 1.4 0 00-2 0L4.4 10.5l-.6 2.7z" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </button>
+                            </>
+                          )}
                           {wallet.is_primary && (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--aqua-primary)]/20 text-[var(--aqua-primary)] font-medium">
                               MAIN

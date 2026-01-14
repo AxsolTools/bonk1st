@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/components/providers/auth-provider'
-import { useLogsSubscription, useHeliusWebSocketState } from '@/hooks/use-helius-websocket'
+import { useLogsSubscription, useWebSocketState } from '@/hooks/use-helius-websocket'
 import { createClient } from '@/lib/supabase/client'
 import type { 
   SniperConfig, 
@@ -25,10 +25,26 @@ import {
 
 // Storage keys
 const STORAGE_KEYS = {
-  CONFIG: 'bonk1st_sniper_config',
+  CONFIG_PREFIX: 'bonk1st_sniper_config:v2:',
   HISTORY: 'bonk1st_snipe_history',
   STATS: 'bonk1st_session_stats',
   NEW_TOKENS: 'bonk1st_new_tokens',
+}
+
+function getConfigStorageKey(sessionId: string | null | undefined, userId: string | null | undefined) {
+  const id = sessionId || userId || 'anon'
+  return `${STORAGE_KEYS.CONFIG_PREFIX}${id}`
+}
+
+function stripRuntimeFields(cfg: SniperConfig): Omit<SniperConfig, 'enabled'> {
+  // `enabled` is runtime (armed/disarmed) and should not mark config "dirty".
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { enabled, ...rest } = cfg
+  return rest
+}
+
+function stableStringify(obj: unknown) {
+  return JSON.stringify(obj)
 }
 
 // Generate unique ID
@@ -70,7 +86,7 @@ export function use1stSniper() {
   const { isAuthenticated, activeWallet, sessionId, userId } = useAuth()
   
   // WebSocket state
-  const wsState = useHeliusWebSocketState()
+  const wsState = useWebSocketState()
   
   // Log WebSocket state changes
   useEffect(() => {
@@ -81,6 +97,10 @@ export function use1stSniper() {
   
   // Core state
   const [config, setConfigState] = useState<SniperConfig>(DEFAULT_SNIPER_CONFIG)
+  const [savedConfigHash, setSavedConfigHash] = useState<string | null>(null)
+  const [isConfigSaving, setIsConfigSaving] = useState(false)
+  const [lastConfigSavedAt, setLastConfigSavedAt] = useState<number | null>(null)
+  const [isConfigLoaded, setIsConfigLoaded] = useState(false)
   const [status, setStatus] = useState<SniperStatus>('idle')
   const [activeSnipes, setActiveSnipes] = useState<ActiveSnipe[]>([])
   const [history, setHistory] = useState<SnipeHistory[]>([])
@@ -105,6 +125,7 @@ export function use1stSniper() {
   // Refs for callbacks
   const configRef = useRef(config)
   const statusRef = useRef(status)
+  const lastSnipeAtRef = useRef<number>(0)
   configRef.current = config
   statusRef.current = status
   
@@ -120,19 +141,61 @@ export function use1stSniper() {
     setLogs(prev => [...prev.slice(-500), entry]) // Keep last 500 logs
   }, [])
   
-  // Load config from localStorage
+  // Load config (per-user): localStorage first, then Supabase (if available)
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEYS.CONFIG)
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        setConfigState({ ...DEFAULT_SNIPER_CONFIG, ...parsed })
-        addLog('info', '⚙️ Loaded saved configuration')
+    const load = async () => {
+      const key = getConfigStorageKey(sessionId, userId)
+      let loaded: SniperConfig | null = null
+
+      // 1) Local fallback (fast)
+      try {
+        const stored = localStorage.getItem(key)
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          loaded = { ...DEFAULT_SNIPER_CONFIG, ...parsed, enabled: false }
+        }
+      } catch (error) {
+        console.error('[BONK1ST] Failed to load local config:', error)
       }
-    } catch (error) {
-      console.error('[BONK1ST] Failed to load config:', error)
+
+      // 2) Supabase source of truth (per-session)
+      try {
+        if (userId) {
+          const supabase = createClient()
+          const { data, error } = await supabase
+            .from('sniper_configs')
+            .select('config, updated_at')
+            .eq('session_id', userId)
+            .single()
+
+          if (!error && data?.config) {
+            loaded = { ...DEFAULT_SNIPER_CONFIG, ...(data.config as any), enabled: false }
+          } else if (loaded) {
+            // If Supabase doesn't have it yet but we do locally, seed it once.
+            await supabase.from('sniper_configs').upsert({
+              session_id: userId,
+              config: stripRuntimeFields(loaded),
+              config_version: 1,
+            })
+          }
+        }
+      } catch (error) {
+        // Silent fallback to local config
+        console.debug('[BONK1ST] Supabase config load failed (using local):', error)
+      }
+
+      const finalConfig = loaded ?? { ...DEFAULT_SNIPER_CONFIG }
+      setConfigState(finalConfig)
+      const hash = stableStringify(stripRuntimeFields(finalConfig))
+      setSavedConfigHash(hash)
+      setLastConfigSavedAt(Date.now())
+      setIsConfigLoaded(true)
+      addLog('info', '⚙️ Loaded sniper configuration')
     }
-  }, [addLog])
+
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, sessionId])
   
   // Load history from localStorage
   useEffect(() => {
@@ -146,14 +209,58 @@ export function use1stSniper() {
     }
   }, [])
   
-  // Save config to localStorage
+  const isConfigDirty = (() => {
+    if (!savedConfigHash) return false
+    const currentHash = stableStringify(stripRuntimeFields(config))
+    return currentHash !== savedConfigHash
+  })()
+
+  // Update draft config (does NOT persist)
   const setConfig = useCallback((updates: Partial<SniperConfig>) => {
-    setConfigState(prev => {
-      const newConfig = { ...prev, ...updates }
-      localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(newConfig))
-      return newConfig
-    })
+    setConfigState(prev => ({ ...prev, ...updates }))
   }, [])
+
+  const saveConfig = useCallback(async () => {
+    const validation = validateConfig(config)
+    if (!validation.valid) {
+      addLog('error', `❌ Invalid config: ${validation.errors.join(', ')}`)
+      return false
+    }
+
+    setIsConfigSaving(true)
+    const key = getConfigStorageKey(sessionId, userId)
+    const configToPersist: SniperConfig = { ...config, enabled: false }
+
+    try {
+      // Local always
+      localStorage.setItem(key, JSON.stringify(stripRuntimeFields(configToPersist)))
+
+      // Supabase best-effort
+      if (userId) {
+        const supabase = createClient()
+        await supabase.from('sniper_configs').upsert({
+          session_id: userId,
+          config: stripRuntimeFields(configToPersist),
+          config_version: 1,
+        })
+      }
+
+      const hash = stableStringify(stripRuntimeFields(configToPersist))
+      setSavedConfigHash(hash)
+      setLastConfigSavedAt(Date.now())
+      addLog('success', '✅ Configuration saved')
+
+      // If currently armed, apply saved config immediately (preserve enabled=true)
+      setConfigState(prev => ({ ...configToPersist, enabled: prev.enabled }))
+      return true
+    } catch (error) {
+      console.error('[BONK1ST] Failed to save config:', error)
+      addLog('error', '❌ Failed to save configuration')
+      return false
+    } finally {
+      setIsConfigSaving(false)
+    }
+  }, [config, userId, sessionId, addLog])
   
   // Save history to localStorage
   useEffect(() => {
@@ -258,7 +365,7 @@ export function use1stSniper() {
   }, [userId])
   
   // Fetch token metadata from existing backend APIs
-  // /api/token/[address]/metadata - for symbol, name, logo (uses Helius DAS + DexScreener)
+  // /api/token/[address]/metadata - for symbol, name, logo (indexed metadata + DexScreener)
   // /api/token/[address]/stats - for liquidity, holders, etc.
   const fetchTokenMetadata = useCallback(async (tokenMint: string): Promise<{
     symbol?: string
@@ -280,7 +387,7 @@ export function use1stSniper() {
       let liquidity: number | undefined
       let marketCap: number | undefined
       
-      // Parse metadata response (symbol, name, logo, price, marketCap from Helius DAS)
+      // Parse metadata response (symbol, name, logo, price, marketCap)
       if (metadataRes.ok) {
         const metaData = await metadataRes.json()
         if (metaData.success && metaData.data) {
@@ -288,7 +395,7 @@ export function use1stSniper() {
           name = metaData.data.name
           // API returns logoUri, logo, or image
           logo = metaData.data.logoUri || metaData.data.logo || metaData.data.image
-          // Helius DAS provides price and market cap for tokens
+          // Indexed metadata may provide price and market cap for some tokens
           if (metaData.data.marketCap && metaData.data.marketCap > 0) {
             marketCap = metaData.data.marketCap
           }
@@ -323,11 +430,26 @@ export function use1stSniper() {
       }
     }
   }, [])
+
+  const fetchLivePrice = useCallback(async (mint: string) => {
+    try {
+      const res = await fetch(`/api/price/token?mint=${mint}`)
+      if (!res.ok) return null
+      const json = await res.json()
+      if (!json?.success || !json?.data) return null
+      return {
+        priceSol: Number(json.data.priceSol) || 0,
+        priceUsd: Number(json.data.priceUsd) || 0,
+      }
+    } catch {
+      return null
+    }
+  }, [])
   
   // Handle LaunchLab logs (BONK/USD1 and BONK/SOL pools)
   const handleLaunchLabLogs = useCallback(async (data: unknown) => {
     try {
-      // Helius WebSocket returns data in nested format: { value: { signature, logs, slot, err } }
+      // WebSocket returns data in nested format: { value: { signature, logs, slot, err } }
       // or directly as { signature, logs, slot, err }
       const rawData = data as Record<string, unknown>
       const logData = (rawData.value || rawData) as { 
@@ -337,7 +459,7 @@ export function use1stSniper() {
         err?: unknown 
       }
       
-      // Extract logs array - handle various Helius response formats
+      // Extract logs array - handle various response formats
       const logs = logData.logs || 
                    (rawData as { result?: { value?: { logs?: string[] } } }).result?.value?.logs ||
                    []
@@ -481,7 +603,7 @@ export function use1stSniper() {
   // Handle Pump.fun logs
   const handlePumpFunLogs = useCallback(async (data: unknown) => {
     try {
-      // Helius WebSocket returns data in nested format
+      // WebSocket returns data in nested format
       const rawData = data as Record<string, unknown>
       const logData = (rawData.value || rawData) as { 
         signature?: string
@@ -490,7 +612,7 @@ export function use1stSniper() {
         err?: unknown 
       }
       
-      // Extract logs array - handle various Helius response formats
+      // Extract logs array - handle various response formats
       const logs = logData.logs || 
                    (rawData as { result?: { value?: { logs?: string[] } } }).result?.value?.logs ||
                    []
@@ -635,13 +757,13 @@ export function use1stSniper() {
     const apiKey = process.env.NEXT_PUBLIC_HELIUS_API_KEY
     
     if (!apiKey) {
-      addLog('error', '❌ HELIUS API KEY NOT CONFIGURED! Set NEXT_PUBLIC_HELIUS_API_KEY in environment variables.')
-      console.error('[BONK1ST] ❌ NEXT_PUBLIC_HELIUS_API_KEY is not set. WebSocket monitoring will not work!')
+      addLog('error', '❌ REAL-TIME KEY NOT CONFIGURED! WebSocket monitoring will not work.')
+      console.error('[BONK1ST] ❌ Real-time key is not set. WebSocket monitoring will not work.')
       return
     }
     
     // NEVER expose API keys in logs - just confirm it exists
-    addLog('info', '🔑 Helius API configured ✓')
+    addLog('info', '🔑 Real-time API configured ✓')
     addLog('info', '🌐 WebSocket connection initializing...')
     
     if (monitorBonkPools) {
@@ -725,6 +847,14 @@ export function use1stSniper() {
       addLog('warning', `⚠️ Daily budget (${configRef.current.dailyBudgetSol} SOL) exhausted`)
       return
     }
+
+    // Cooldown enforcement
+    const cooldownMs = Math.max(0, (configRef.current.cooldownBetweenSnipes || 0) * 1000)
+    if (cooldownMs > 0 && Date.now() - lastSnipeAtRef.current < cooldownMs) {
+      const remaining = Math.ceil((cooldownMs - (Date.now() - lastSnipeAtRef.current)) / 1000)
+      addLog('warning', `⏳ Cooldown active (${remaining}s remaining)`)
+      return
+    }
     
     setStatus('sniping')
     
@@ -738,32 +868,64 @@ export function use1stSniper() {
     
     try {
       addLog('snipe', `🎯 SNIPING: ${formatSol(snipeAmount)} ${configRef.current.useUsd1 && token.pool === 'bonk-usd1' ? 'USD1' : 'SOL'}`, { tokenMint: token.tokenMint })
-      
-      // Call existing trade API
-      const response = await fetch('/api/trade', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-session-id': sessionId || userId || '',
-          'x-wallet-address': activeWallet.public_key,
-          'x-user-id': userId || '',
-        },
-        body: JSON.stringify({
-          action: 'buy',
-          tokenMint: token.tokenMint,
-          amount: snipeAmount,
-          slippageBps: configRef.current.slippageBps,
-          pool: token.pool.startsWith('bonk') ? 'bonk' : 'pump',
-          quoteMint,
-          autoConvertUsd1: false,
-        }),
-      })
-      
-      const data = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(data.error?.message || 'Snipe failed')
+
+      // Enforce max per-snipe (approximate for USD1 buys using $150/SOL)
+      const maxSingle = configRef.current.maxSingleSnipeSol || 0
+      if (maxSingle > 0) {
+        const approxSol = (configRef.current.useUsd1 && token.pool === 'bonk-usd1') ? (snipeAmount / 150) : snipeAmount
+        if (approxSol > maxSingle) {
+          addLog('warning', `⚠️ Max single snipe (${maxSingle} SOL) exceeded`)
+          return
+        }
       }
+
+      const attempts = configRef.current.retryOnFail ? Math.max(1, 1 + (configRef.current.maxRetries || 0)) : 1
+      let data: any = null
+      let lastError: string | null = null
+
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+          if (attempt > 1) addLog('info', `🔁 Retry ${attempt}/${attempts}...`, { tokenMint: token.tokenMint })
+
+          const response = await fetch('/api/trade', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-session-id': sessionId || userId || '',
+              'x-wallet-address': activeWallet.public_key,
+              'x-user-id': userId || '',
+            },
+            body: JSON.stringify({
+              action: 'buy',
+              tokenMint: token.tokenMint,
+              amount: snipeAmount,
+              slippageBps: configRef.current.slippageBps,
+              priorityFeeLamports: configRef.current.priorityFeeLamports,
+              pool: token.pool.startsWith('bonk') ? 'bonk' : 'pump',
+              quoteMint,
+              autoConvertUsd1: false,
+            }),
+          })
+
+          data = await response.json()
+
+          if (!response.ok) {
+            throw new Error(data?.error?.message || 'Snipe failed')
+          }
+
+          lastError = null
+          break
+        } catch (e) {
+          lastError = e instanceof Error ? e.message : 'Unknown error'
+          if (attempt < attempts) {
+            await new Promise(resolve => setTimeout(resolve, 500 * attempt))
+          }
+        }
+      }
+
+      if (lastError) throw new Error(lastError)
+
+      lastSnipeAtRef.current = Date.now()
       
       // Create active snipe record
       const activeSnipe: ActiveSnipe = {
@@ -773,6 +935,7 @@ export function use1stSniper() {
         tokenName: token.tokenName || 'Unknown Token',
         tokenLogo: token.tokenLogo,
         pool: token.pool,
+        creatorWallet: token.creatorWallet,
         entryBlock: token.creationBlock,
         entryTimestamp: Date.now(),
         entryPriceSol: 0,
@@ -790,6 +953,28 @@ export function use1stSniper() {
         peakPriceSol: 0,
         takeProfitPrice: 0,
         stopLossPrice: 0,
+      }
+
+      // Fetch entry price once to initialize thresholds for auto-sell / PnL
+      const entryPrice = await fetchLivePrice(token.tokenMint)
+      if (entryPrice?.priceSol) {
+        const entryPriceSol = entryPrice.priceSol
+        const entryPriceUsd = entryPrice.priceUsd || 0
+        const takeProfitMult = 1 + (configRef.current.takeProfitPercent / 100)
+        const stopLossMult = 1 - (configRef.current.stopLossPercent / 100)
+        activeSnipe.entryPriceSol = entryPriceSol
+        activeSnipe.entryPriceUsd = entryPriceUsd
+        activeSnipe.currentPriceSol = entryPriceSol
+        activeSnipe.currentPriceUsd = entryPriceUsd
+        activeSnipe.peakPriceSol = entryPriceSol
+        activeSnipe.takeProfitPrice = entryPriceSol * takeProfitMult
+        activeSnipe.stopLossPrice = entryPriceSol * stopLossMult
+        if (configRef.current.trailingStopEnabled) {
+          activeSnipe.trailingStopPrice = entryPriceSol * (1 - (configRef.current.trailingStopPercent / 100))
+        }
+        if (configRef.current.sellAfterSeconds > 0) {
+          activeSnipe.sellAfterTimestamp = activeSnipe.entryTimestamp + (configRef.current.sellAfterSeconds * 1000)
+        }
       }
       
       setActiveSnipes(prev => [...prev, activeSnipe])
@@ -820,15 +1005,145 @@ export function use1stSniper() {
       setStatus('armed')
     }
   }
+
+  // Auto-sell engine (take profit / stop loss / trailing stop / time-based)
+  useEffect(() => {
+    if (!isAuthenticated || !activeWallet) return
+    if (!configRef.current.autoSellEnabled) return
+    if (activeSnipes.length === 0) return
+
+    let cancelled = false
+    const inFlight = new Set<string>()
+
+    const sellPosition = async (snipe: ActiveSnipe, trigger: any) => {
+      if (inFlight.has(snipe.id)) return
+      inFlight.add(snipe.id)
+      try {
+        const sellPct = Math.max(1, Math.min(100, configRef.current.sellPercentOnTrigger || 100))
+        const amountToSell = snipe.amountTokens * (sellPct / 100)
+        if (!amountToSell || amountToSell <= 0) return
+
+        addLog('sell', `💰 AUTO-SELL (${trigger}): ${snipe.tokenSymbol}`, { tokenMint: snipe.tokenMint }, snipe.tokenMint)
+
+        const response = await fetch('/api/trade', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-session-id': sessionId || userId || '',
+            'x-wallet-address': activeWallet.public_key,
+            'x-user-id': userId || '',
+          },
+          body: JSON.stringify({
+            action: 'sell',
+            tokenMint: snipe.tokenMint,
+            amount: amountToSell,
+            slippageBps: configRef.current.slippageBps,
+            priorityFeeLamports: configRef.current.priorityFeeLamports,
+            pool: snipe.pool.startsWith('bonk') ? 'bonk' : 'pump',
+          }),
+        })
+
+        const data = await response.json()
+        if (!response.ok) throw new Error(data?.error?.message || 'Auto-sell failed')
+
+        setActiveSnipes(prev => prev.map(p => {
+          if (p.id !== snipe.id) return p
+          const now = Date.now()
+          const remaining = Math.max(0, p.amountTokens - amountToSell)
+          const isFullySold = remaining <= 0.0000001
+          return {
+            ...p,
+            amountTokens: remaining,
+            status: isFullySold ? 'sold' : p.status,
+            exitTimestamp: isFullySold ? now : p.exitTimestamp,
+            exitTxSignature: data?.data?.txSignature || p.exitTxSignature,
+            exitTrigger: isFullySold ? trigger : p.exitTrigger,
+          }
+        }))
+
+      } catch (e) {
+        addLog('error', `❌ Auto-sell failed: ${e instanceof Error ? e.message : 'Unknown error'}`, { tokenMint: snipe.tokenMint }, snipe.tokenMint)
+      } finally {
+        inFlight.delete(snipe.id)
+      }
+    }
+
+    const tick = async () => {
+      const snapshot = activeSnipes
+      for (const snipe of snapshot) {
+        if (cancelled) return
+        if (snipe.status !== 'success') continue
+
+        const live = await fetchLivePrice(snipe.tokenMint)
+        if (!live || !live.priceSol) continue
+
+        setActiveSnipes(prev => prev.map(p => {
+          if (p.id !== snipe.id) return p
+          const entryCostSol = (p.entryPriceSol || live.priceSol) * (p.amountTokens || 0)
+          const valueSol = live.priceSol * (p.amountTokens || 0)
+          const pnlSol = valueSol - entryCostSol
+          const pnlPercent = entryCostSol > 0 ? (pnlSol / entryCostSol) * 100 : 0
+
+          const nextPeak = Math.max(p.peakPriceSol || 0, live.priceSol)
+          const trailingStopPrice = configRef.current.trailingStopEnabled
+            ? nextPeak * (1 - (configRef.current.trailingStopPercent / 100))
+            : p.trailingStopPrice
+
+          return {
+            ...p,
+            currentPriceSol: live.priceSol,
+            currentPriceUsd: live.priceUsd,
+            currentValueSol: valueSol,
+            pnlSol,
+            pnlPercent,
+            peakPriceSol: nextPeak,
+            trailingStopPrice,
+          }
+        }))
+
+        // Trigger evaluation (uses current config)
+        const now = Date.now()
+        const takeProfitHit = snipe.takeProfitPrice > 0 && live.priceSol >= snipe.takeProfitPrice
+        const stopLossHit = snipe.stopLossPrice > 0 && live.priceSol <= snipe.stopLossPrice
+        const trailingHit = !!configRef.current.trailingStopEnabled && !!snipe.trailingStopPrice && live.priceSol <= snipe.trailingStopPrice
+        const timeHit = !!snipe.sellAfterTimestamp && now >= snipe.sellAfterTimestamp
+
+        if (takeProfitHit) await sellPosition(snipe, 'take_profit')
+        else if (stopLossHit) await sellPosition(snipe, 'stop_loss')
+        else if (trailingHit) await sellPosition(snipe, 'trailing_stop')
+        else if (timeHit) await sellPosition(snipe, 'time_based')
+      }
+    }
+
+    const interval = setInterval(() => {
+      tick().catch(() => {})
+    }, 5000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [activeSnipes, isAuthenticated, activeWallet, fetchLivePrice, addLog, sessionId, userId])
   
-  // Arm sniper
-  const armSniper = useCallback(() => {
+  // Arm sniper (always ensures saved config is what's used)
+  const armSniper = useCallback(async () => {
     if (!isAuthenticated) {
       addLog('error', '❌ Connect wallet to arm sniper')
       return
     }
     
-    const validation = validateConfig(config)
+    if (!isConfigLoaded) {
+      addLog('warning', '⏳ Loading config...')
+      return
+    }
+
+    // If there are unsaved changes, save them so the running sniper uses saved config.
+    if (isConfigDirty) {
+      const ok = await saveConfig()
+      if (!ok) return
+    }
+
+    const validation = validateConfig(configRef.current)
     if (!validation.valid) {
       addLog('error', `❌ Invalid config: ${validation.errors.join(', ')}`)
       return
@@ -840,10 +1155,10 @@ export function use1stSniper() {
     setStats(prev => ({ ...prev, sessionStartTime: Date.now() }))
     
     addLog('success', '🟢 SNIPER ARMED - Hunting for new tokens...')
-    addLog('info', `🎯 Targets: ${config.targetPools.map(p => p.toUpperCase()).join(', ')}`)
-    addLog('info', `💰 Buy: ${config.useUsd1 ? config.buyAmountUsd1 + ' USD1' : config.buyAmountSol + ' SOL'}`)
-    addLog('info', `📊 Slippage: ${(config.slippageBps / 100).toFixed(1)}%`)
-  }, [isAuthenticated, config, addLog, setConfig])
+    addLog('info', `🎯 Targets: ${configRef.current.targetPools.map(p => p.toUpperCase()).join(', ')}`)
+    addLog('info', `💰 Buy: ${configRef.current.useUsd1 ? configRef.current.buyAmountUsd1 + ' USD1' : configRef.current.buyAmountSol + ' SOL'}`)
+    addLog('info', `📊 Slippage: ${(configRef.current.slippageBps / 100).toFixed(1)}%`)
+  }, [isAuthenticated, addLog, setConfig, isConfigDirty, saveConfig, isConfigLoaded])
   
   // Disarm sniper
   const disarmSniper = useCallback(() => {
@@ -950,6 +1265,10 @@ export function use1stSniper() {
     
     // Actions
     setConfig,
+    saveConfig,
+    isConfigDirty,
+    isConfigSaving,
+    lastConfigSavedAt,
     armSniper,
     disarmSniper,
     emergencyStop,

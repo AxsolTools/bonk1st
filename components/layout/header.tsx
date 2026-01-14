@@ -7,7 +7,8 @@ import { usePathname } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { useAuth } from "@/components/providers/auth-provider"
 import { WalletSidebar } from "@/components/wallet/wallet-sidebar"
-import { ChevronDown, Sparkles, Coins, Dice6, BarChart3, DollarSign, Activity } from "lucide-react"
+import { useBalance } from "@/hooks/use-balance"
+import { ChevronDown, Sparkles, Coins, Dice6, BarChart3, DollarSign } from "lucide-react"
 
 // Custom Jupiter icon (planet with rings)
 const JupiterIcon = ({ className }: { className?: string }) => (
@@ -44,7 +45,6 @@ const navItems = [
   // { href: "/dice", label: "Dice", icon: Dice6 },
   { href: "/launch-bonk", label: "USD1", icon: DollarSign, color: "amber" },
   { href: "/earn", label: "Earn", icon: EarnIcon, color: "aqua" },
-  { href: "/volume-bot", label: "Volume Bot", icon: Activity },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/profile", label: "Profile" },
 ]
@@ -56,6 +56,7 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const formatAddress = (address: string) => `${address.slice(0, 4)}...${address.slice(-4)}`
+  const { balanceSol } = useBalance(activeWallet?.public_key || null, { refreshInterval: 15_000, enabled: !!activeWallet })
 
   return (
     <>
@@ -167,12 +168,17 @@ export function Header() {
               ) : isAuthenticated && activeWallet ? (
                 <button
                   onClick={() => setShowWalletSidebar(true)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-[var(--border-default)] transition-all"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-[var(--aqua-border)] transition-all"
                 >
                   <div className="w-1.5 h-1.5 rounded-full bg-[var(--green)]" />
-                  <span className="text-sm font-mono text-[var(--text-primary)]">
-                    {formatAddress(activeWallet.public_key)}
-                  </span>
+                  <div className="flex flex-col items-start leading-none">
+                    <span className="text-[11px] font-mono text-[var(--text-primary)]">
+                      {formatAddress(activeWallet.public_key)}
+                    </span>
+                    <span className="text-[10px] font-semibold text-[var(--aqua-primary)] tabular-nums mt-0.5">
+                      {balanceSol.toFixed(4)} SOL
+                    </span>
+                  </div>
                 </button>
               ) : (
                 <button onClick={() => setIsOnboarding(true)} className="btn-secondary text-sm py-2 px-4">

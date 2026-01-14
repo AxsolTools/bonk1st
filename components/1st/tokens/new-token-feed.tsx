@@ -48,7 +48,7 @@ function LiveTokenCard({
         let marketCap = token.initialMarketCap
         let logo = token.tokenLogo || null
         
-        // Parse metadata (DexScreener first, then Helius DAS)
+        // Parse metadata (DexScreener first, then indexed metadata)
         if (metadataRes.ok) {
           const metaData = await metadataRes.json()
           if (metaData.success && metaData.data) {

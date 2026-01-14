@@ -156,7 +156,7 @@ function LivePairRow({
         let liquidity = pair.initialLiquidity
         let logo = pair.tokenLogo || null
         
-        // Get logo from metadata (DexScreener first, then Helius)
+        // Get logo from metadata (DexScreener first, then indexed metadata)
         if (metadataRes.ok) {
           const metaData = await metadataRes.json()
           if (metaData.success && metaData.data) {

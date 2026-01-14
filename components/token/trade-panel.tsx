@@ -9,7 +9,6 @@ import { useBalance, useTokenBalance } from "@/hooks/use-balance"
 import { useMultiWalletPNL, formatPnlPercent, formatTokenBalance, formatSolBalance } from "@/hooks/use-multi-wallet-pnl"
 import { cn } from "@/lib/utils"
 import { EarnShortcut } from "@/components/earn/earn-shortcut"
-import { VolumeBotQuickControls } from "@/components/token/volume-bot-quick-controls"
 import { tradeEvents } from "@/lib/events/trade-events"
 import { DollarSign } from "lucide-react"
 
@@ -451,7 +450,7 @@ export function TradePanel({ token }: TradePanelProps) {
         throw new Error(friendlyMessage)
       }
 
-      // Emit trade event for INSTANT UI update (no waiting for Helius indexing!)
+      // Emit trade event for INSTANT UI update (no waiting for indexing!)
       if (data.data?.txSignature && token.mint_address) {
         tradeEvents.emit({
           signature: data.data.txSignature,
@@ -488,7 +487,7 @@ export function TradePanel({ token }: TradePanelProps) {
   }
 
   return (
-    <div className="glass-panel-elevated p-4 rounded-lg">
+    <div className="glass-panel-elevated p-4">
       {/* Active Wallet Selector */}
       {isAuthenticated && activeWallet && (
         <div className="mb-4 relative" ref={selectorRef}>
@@ -729,17 +728,6 @@ export function TradePanel({ token }: TradePanelProps) {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Volume Bot Quick Controls */}
-      {isAuthenticated && token.mint_address && (
-        <div className="mb-4">
-          <VolumeBotQuickControls 
-            tokenMint={token.mint_address} 
-            tokenSymbol={token.symbol || 'TOKEN'}
-            currentPrice={effectivePriceSol}
-          />
         </div>
       )}
 

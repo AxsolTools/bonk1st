@@ -57,7 +57,6 @@ export const metadata: Metadata = {
     description: "Pour Rate technology ensures your token never runs dry",
     images: ["/propelweblogo.png"],
   },
-    generator: 'v0.app'
 }
 
 export const viewport: Viewport = {

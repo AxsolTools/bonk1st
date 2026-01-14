@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
 /**
- * React hook for Helius WebSocket subscriptions
+ * React hook for WebSocket subscriptions (Solana RPC)
  * Provides real-time updates for account changes, logs, and more
  * 
  * Benefits over polling:
@@ -40,7 +40,18 @@ type MessageHandler<T> = (data: T) => void
 
 // WebSocket singleton for client-side
 let wsInstance: WebSocket | null = null
-let subscriptions = new Map<number, { method: string; handler: (data: unknown) => void }>()
+type SubscriptionTemplate = {
+  method: string
+  params: unknown[]
+  handler: (data: unknown) => void
+  unsubscribeMethod: string
+  subscriptionId: number | null
+}
+
+// We track subscriptions by a stable template id so we can re-subscribe on reconnect.
+let subscriptionTemplates = new Map<number, SubscriptionTemplate>()
+let templateIdBySubscriptionId = new Map<number, number>()
+let templateIdCounter = 1
 let pendingRequests = new Map<number, { resolve: (id: number) => void; reject: (err: Error) => void }>()
 let requestIdCounter = 1
 let pingInterval: ReturnType<typeof setInterval> | null = null
@@ -52,7 +63,7 @@ function getWsState(): WebSocketState {
     isConnected: wsInstance?.readyState === WebSocket.OPEN,
     isConnecting: wsInstance?.readyState === WebSocket.CONNECTING,
     error: null,
-    subscriptionCount: subscriptions.size,
+    subscriptionCount: subscriptionTemplates.size,
   }
 }
 
@@ -61,7 +72,7 @@ function notifyStateChange() {
   stateListeners.forEach(listener => listener(state))
 }
 
-function getHeliusApiKey(): string | null {
+function getWsApiKey(): string | null {
   // In client-side, we need the public key
   return process.env.NEXT_PUBLIC_HELIUS_API_KEY || null
 }
@@ -82,9 +93,9 @@ async function ensureConnection(): Promise<void> {
     })
   }
 
-  const apiKey = getHeliusApiKey()
+  const apiKey = getWsApiKey()
   if (!apiKey) {
-    throw new Error('Helius API key not configured')
+    throw new Error('WebSocket API key not configured')
   }
 
   return new Promise((resolve, reject) => {
@@ -92,7 +103,7 @@ async function ensureConnection(): Promise<void> {
     wsInstance = new WebSocket(wsUrl)
 
     wsInstance.onopen = () => {
-      console.log('[HELIUS-WS] Connected')
+      console.log('[WS] Connected')
       reconnectAttempts = 0
       notifyStateChange()
       startPingInterval()
@@ -106,7 +117,7 @@ async function ensureConnection(): Promise<void> {
 
     wsInstance.onerror = (event) => {
       // WebSocket error events don't contain useful info - the close event has the code
-      console.warn('[HELIUS-WS] Connection error occurred (details in close event)')
+      console.warn('[WS] Connection error occurred (details in close event)')
       notifyStateChange()
     }
 
@@ -124,7 +135,7 @@ async function ensureConnection(): Promise<void> {
         1015: 'TLS handshake failed',
       }
       const description = codeDescriptions[event.code] || 'Unknown'
-      console.log(`[HELIUS-WS] Disconnected: ${event.code} (${description})${event.reason ? ` - ${event.reason}` : ''}`)
+      console.log(`[WS] Disconnected: ${event.code} (${description})${event.reason ? ` - ${event.reason}` : ''}`)
       stopPingInterval()
       notifyStateChange()
       
@@ -132,7 +143,7 @@ async function ensureConnection(): Promise<void> {
       if (event.code !== 1000 && reconnectAttempts < 5) {
         reconnectAttempts++
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000)
-        console.log(`[HELIUS-WS] Reconnecting in ${delay / 1000}s (attempt ${reconnectAttempts}/5)...`)
+        console.log(`[WS] Reconnecting in ${delay / 1000}s (attempt ${reconnectAttempts}/5)...`)
         setTimeout(() => {
           ensureConnection().catch(console.error)
         }, delay)
@@ -170,15 +181,16 @@ function handleMessage(data: string) {
     // Handle notifications
     if (message.method?.endsWith('Notification')) {
       const subscriptionId = message.params?.subscription
-      const sub = subscriptions.get(subscriptionId)
-      if (sub) {
-        sub.handler(message.params?.result)
+      const templateId = templateIdBySubscriptionId.get(subscriptionId)
+      if (templateId !== undefined) {
+        const tpl = subscriptionTemplates.get(templateId)
+        tpl?.handler(message.params?.result)
       }
     }
 
     // Handle errors
     if (message.error) {
-      console.error('[HELIUS-WS] Error:', message.error)
+      console.error('[WS] Error:', message.error)
       const pending = message.id ? pendingRequests.get(message.id) : null
       if (pending) {
         pendingRequests.delete(message.id)
@@ -186,7 +198,7 @@ function handleMessage(data: string) {
       }
     }
   } catch (error) {
-    console.error('[HELIUS-WS] Parse error:', error)
+    console.error('[WS] Parse error:', error)
   }
 }
 
@@ -214,28 +226,64 @@ function stopPingInterval() {
 }
 
 function resubscribeAll() {
-  const existingSubs = Array.from(subscriptions.entries())
-  subscriptions.clear()
-  
-  for (const [, sub] of existingSubs) {
-    // Re-subscribe (simplified - in production you'd store params)
-    console.log('[HELIUS-WS] Resubscribing:', sub.method)
+  // Clear server subscription id mapping (ids are invalid after reconnect)
+  templateIdBySubscriptionId.clear()
+
+  // Re-subscribe all templates
+  for (const [templateId, tpl] of subscriptionTemplates.entries()) {
+    // Mark as not subscribed yet; a new server id will be assigned.
+    tpl.subscriptionId = null
+    // Fire and forget; hooks already have polling fallbacks.
+    subscribeTemplate(templateId).catch(() => {
+      // Silent: ensureConnection already logs failures
+    })
   }
 }
 
-async function subscribe(
+function createSubscriptionTemplate(
   method: string,
+  unsubscribeMethod: string,
   params: unknown[],
   handler: (data: unknown) => void
-): Promise<number> {
+): number {
+  const templateId = templateIdCounter++
+  subscriptionTemplates.set(templateId, {
+    method,
+    params,
+    handler,
+    unsubscribeMethod,
+    subscriptionId: null,
+  })
+  notifyStateChange()
+  return templateId
+}
+
+async function subscribeTemplate(templateId: number): Promise<number> {
   await ensureConnection()
+
+  const tpl = subscriptionTemplates.get(templateId)
+  if (!tpl) throw new Error('Unknown subscription template')
 
   const requestId = requestIdCounter++
 
   return new Promise((resolve, reject) => {
     pendingRequests.set(requestId, {
       resolve: (subscriptionId) => {
-        subscriptions.set(subscriptionId, { method, handler })
+        // If the subscription was cancelled before the server responded, clean up immediately.
+        if (!subscriptionTemplates.has(templateId)) {
+          if (wsInstance?.readyState === WebSocket.OPEN) {
+            wsInstance.send(JSON.stringify({
+              jsonrpc: '2.0',
+              id: requestIdCounter++,
+              method: tpl.unsubscribeMethod,
+              params: [subscriptionId],
+            }))
+          }
+          return resolve(subscriptionId)
+        }
+
+        tpl.subscriptionId = subscriptionId
+        templateIdBySubscriptionId.set(subscriptionId, templateId)
         notifyStateChange()
         resolve(subscriptionId)
       },
@@ -245,8 +293,8 @@ async function subscribe(
     wsInstance!.send(JSON.stringify({
       jsonrpc: '2.0',
       id: requestId,
-      method,
-      params,
+      method: tpl.method,
+      params: tpl.params,
     }))
 
     setTimeout(() => {
@@ -258,18 +306,25 @@ async function subscribe(
   })
 }
 
-function unsubscribe(method: string, subscriptionId: number) {
-  subscriptions.delete(subscriptionId)
-  notifyStateChange()
+function unsubscribeTemplate(templateId: number) {
+  const tpl = subscriptionTemplates.get(templateId)
+  if (!tpl) return
 
-  if (wsInstance?.readyState === WebSocket.OPEN) {
-    wsInstance.send(JSON.stringify({
-      jsonrpc: '2.0',
-      id: requestIdCounter++,
-      method,
-      params: [subscriptionId],
-    }))
+  const subscriptionId = tpl.subscriptionId
+  if (subscriptionId != null) {
+    templateIdBySubscriptionId.delete(subscriptionId)
+    if (wsInstance?.readyState === WebSocket.OPEN) {
+      wsInstance.send(JSON.stringify({
+        jsonrpc: '2.0',
+        id: requestIdCounter++,
+        method: tpl.unsubscribeMethod,
+        params: [subscriptionId],
+      }))
+    }
   }
+
+  subscriptionTemplates.delete(templateId)
+  notifyStateChange()
 }
 
 // ============================================================================
@@ -279,7 +334,7 @@ function unsubscribe(method: string, subscriptionId: number) {
 /**
  * Hook to get WebSocket connection state
  */
-export function useHeliusWebSocketState(): WebSocketState {
+export function useWebSocketState(): WebSocketState {
   const [state, setState] = useState<WebSocketState>(getWsState)
 
   useEffect(() => {
@@ -309,7 +364,7 @@ export function useAccountSubscription(
   onUpdate: MessageHandler<AccountUpdate>,
   options: { encoding?: string; commitment?: string } = {}
 ) {
-  const subscriptionIdRef = useRef<number | null>(null)
+  const templateIdRef = useRef<number | null>(null)
   const handlerRef = useRef(onUpdate)
   handlerRef.current = onUpdate
 
@@ -320,8 +375,9 @@ export function useAccountSubscription(
 
     const setupSubscription = async () => {
       try {
-        const id = await subscribe(
+        const templateId = createSubscriptionTemplate(
           'accountSubscribe',
+          'accountUnsubscribe',
           [
             pubkey,
             {
@@ -330,16 +386,15 @@ export function useAccountSubscription(
             },
           ],
           (data) => {
-            if (mounted) {
-              handlerRef.current(data as AccountUpdate)
-            }
+            if (mounted) handlerRef.current(data as AccountUpdate)
           }
         )
 
         if (mounted) {
-          subscriptionIdRef.current = id
+          templateIdRef.current = templateId
+          await subscribeTemplate(templateId)
         } else {
-          unsubscribe('accountUnsubscribe', id)
+          unsubscribeTemplate(templateId)
         }
       } catch (error) {
         console.error('[useAccountSubscription] Failed:', error)
@@ -350,9 +405,9 @@ export function useAccountSubscription(
 
     return () => {
       mounted = false
-      if (subscriptionIdRef.current !== null) {
-        unsubscribe('accountUnsubscribe', subscriptionIdRef.current)
-        subscriptionIdRef.current = null
+      if (templateIdRef.current !== null) {
+        unsubscribeTemplate(templateIdRef.current)
+        templateIdRef.current = null
       }
     }
   }, [pubkey, options.encoding, options.commitment])
@@ -375,7 +430,7 @@ export function useLogsSubscription(
   onUpdate: MessageHandler<LogsUpdate>,
   options: { commitment?: string } = {}
 ) {
-  const subscriptionIdRef = useRef<number | null>(null)
+  const templateIdRef = useRef<number | null>(null)
   const handlerRef = useRef(onUpdate)
   handlerRef.current = onUpdate
 
@@ -386,23 +441,23 @@ export function useLogsSubscription(
 
     const setupSubscription = async () => {
       try {
-        const id = await subscribe(
+        const templateId = createSubscriptionTemplate(
           'logsSubscribe',
+          'logsUnsubscribe',
           [
             { mentions: [pubkey] },
             { commitment: options.commitment || 'confirmed' },
           ],
           (data) => {
-            if (mounted) {
-              handlerRef.current(data as LogsUpdate)
-            }
+            if (mounted) handlerRef.current(data as LogsUpdate)
           }
         )
 
         if (mounted) {
-          subscriptionIdRef.current = id
+          templateIdRef.current = templateId
+          await subscribeTemplate(templateId)
         } else {
-          unsubscribe('logsUnsubscribe', id)
+          unsubscribeTemplate(templateId)
         }
       } catch (error) {
         console.error('[useLogsSubscription] Failed:', error)
@@ -413,9 +468,9 @@ export function useLogsSubscription(
 
     return () => {
       mounted = false
-      if (subscriptionIdRef.current !== null) {
-        unsubscribe('logsUnsubscribe', subscriptionIdRef.current)
-        subscriptionIdRef.current = null
+      if (templateIdRef.current !== null) {
+        unsubscribeTemplate(templateIdRef.current)
+        templateIdRef.current = null
       }
     }
   }, [pubkey, options.commitment])
@@ -432,7 +487,7 @@ export function useSignatureSubscription(
   onConfirmed: (result: { err: unknown | null }) => void,
   options: { commitment?: string } = {}
 ) {
-  const subscriptionIdRef = useRef<number | null>(null)
+  const templateIdRef = useRef<number | null>(null)
   const handlerRef = useRef(onConfirmed)
   handlerRef.current = onConfirmed
 
@@ -443,8 +498,9 @@ export function useSignatureSubscription(
 
     const setupSubscription = async () => {
       try {
-        const id = await subscribe(
+        const templateId = createSubscriptionTemplate(
           'signatureSubscribe',
+          'signatureUnsubscribe',
           [
             signature,
             { commitment: options.commitment || 'confirmed' },
@@ -452,16 +508,20 @@ export function useSignatureSubscription(
           (data) => {
             if (mounted) {
               handlerRef.current(data as { err: unknown | null })
-              // Signature subscriptions auto-remove after confirmation
-              subscriptionIdRef.current = null
+              // Signature subscriptions auto-remove after confirmation (best-effort)
+              if (templateIdRef.current != null) {
+                unsubscribeTemplate(templateIdRef.current)
+                templateIdRef.current = null
+              }
             }
           }
         )
 
         if (mounted) {
-          subscriptionIdRef.current = id
+          templateIdRef.current = templateId
+          await subscribeTemplate(templateId)
         } else {
-          unsubscribe('signatureUnsubscribe', id)
+          unsubscribeTemplate(templateId)
         }
       } catch (error) {
         console.error('[useSignatureSubscription] Failed:', error)
@@ -472,9 +532,9 @@ export function useSignatureSubscription(
 
     return () => {
       mounted = false
-      if (subscriptionIdRef.current !== null) {
-        unsubscribe('signatureUnsubscribe', subscriptionIdRef.current)
-        subscriptionIdRef.current = null
+      if (templateIdRef.current !== null) {
+        unsubscribeTemplate(templateIdRef.current)
+        templateIdRef.current = null
       }
     }
   }, [signature, options.commitment])
@@ -484,13 +544,13 @@ export function useSignatureSubscription(
  * Hook to manually connect the WebSocket
  * Useful if you want to pre-warm the connection
  */
-export function useHeliusConnect() {
+export function useWebSocketConnect() {
   const connect = useCallback(async () => {
     try {
       await ensureConnection()
       return true
     } catch (error) {
-      console.error('[useHeliusConnect] Failed:', error)
+      console.error('[useWebSocketConnect] Failed:', error)
       return false
     }
   }, [])

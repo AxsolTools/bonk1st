@@ -115,8 +115,9 @@
 }
 
 @theme inline {
-  --font-sans: "Inter", "Inter Fallback", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", "Monaco", monospace;
+  /* Use the app-provided font variables from `app/layout.tsx` */
+  --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -179,36 +180,73 @@
    ============================================ */
 
 .glass-panel {
-  background: linear-gradient(135deg, rgba(18, 20, 26, 0.95) 0%, rgba(15, 16, 20, 0.9) 100%);
-  border: 1px solid var(--border-subtle);
-  border-radius: 0.75rem;
-  backdrop-filter: blur(12px);
+  /* "Reef cut" panel: asymmetric + notched corners to avoid generic card look */
+  --reef-notch: 14px;
+  position: relative;
+  background:
+    radial-gradient(1100px 380px at 8% -30%, rgba(20, 184, 166, 0.18), transparent 58%),
+    radial-gradient(800px 260px at 92% 0%, rgba(249, 115, 22, 0.12), transparent 60%),
+    linear-gradient(135deg, rgba(18, 20, 26, 0.92) 0%, rgba(10, 11, 13, 0.88) 60%, rgba(15, 16, 20, 0.92) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 1rem;
+  clip-path: polygon(
+    var(--reef-notch) 0%,
+    calc(100% - var(--reef-notch)) 0%,
+    100% var(--reef-notch),
+    100% calc(100% - var(--reef-notch)),
+    calc(100% - var(--reef-notch)) 100%,
+    var(--reef-notch) 100%,
+    0% calc(100% - var(--reef-notch)),
+    0% var(--reef-notch)
+  );
+  backdrop-filter: blur(14px);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset;
 }
 
 .glass-panel-elevated {
-  background: linear-gradient(135deg, rgba(26, 29, 38, 0.98) 0%, rgba(18, 20, 26, 0.95) 100%);
-  border: 1px solid var(--border-default);
-  border-radius: 0.75rem;
-  backdrop-filter: blur(16px);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  --reef-notch: 16px;
+  position: relative;
+  background:
+    radial-gradient(900px 320px at 10% -20%, rgba(20, 184, 166, 0.22), transparent 60%),
+    radial-gradient(900px 320px at 110% 30%, rgba(236, 72, 153, 0.12), transparent 55%),
+    linear-gradient(135deg, rgba(26, 29, 38, 0.96) 0%, rgba(18, 20, 26, 0.93) 55%, rgba(10, 11, 13, 0.96) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.125rem;
+  clip-path: polygon(
+    var(--reef-notch) 0%,
+    calc(100% - var(--reef-notch)) 0%,
+    100% var(--reef-notch),
+    100% calc(100% - var(--reef-notch)),
+    calc(100% - var(--reef-notch)) 100%,
+    var(--reef-notch) 100%,
+    0% calc(100% - var(--reef-notch)),
+    0% var(--reef-notch)
+  );
+  backdrop-filter: blur(18px);
+  box-shadow:
+    0 22px 70px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(20, 184, 166, 0.06) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.02);
 }
 
 .glass-card {
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 1rem;
   transition: all 0.2s ease;
 }
 
 .glass-card:hover {
   background: var(--bg-card-hover);
-  border-color: var(--border-default);
+  border-color: rgba(20, 184, 166, 0.18);
 }
 
 .glass-card-interactive {
   background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 1rem;
   transition: all 0.25s ease;
   cursor: pointer;
 }
@@ -216,8 +254,26 @@
 .glass-card-interactive:hover {
   background: var(--bg-card-hover);
   border-color: var(--aqua-border);
-  box-shadow: 0 0 20px rgba(20, 184, 166, 0.08);
-  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px rgba(20, 184, 166, 0.06) inset,
+    0 18px 45px rgba(0, 0, 0, 0.55),
+    0 0 30px rgba(20, 184, 166, 0.08);
+  transform: translateY(-3px);
+}
+
+/* Panel header motif: subtle "sonar line" */
+.reef-header-line {
+  position: relative;
+}
+.reef-header-line::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(20, 184, 166, 0.35), rgba(249, 115, 22, 0.22), transparent);
+  opacity: 0.9;
 }
 
 /* ============================================

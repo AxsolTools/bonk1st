@@ -12,6 +12,10 @@ import { DEFAULT_SNIPER_CONFIG, AGGRESSIVE_SNIPER_CONFIG, CONSERVATIVE_SNIPER_CO
 interface SniperConfigPanelProps {
   config: SniperConfig
   onConfigChange: (updates: Partial<SniperConfig>) => void
+  onSave?: () => void
+  isDirty?: boolean
+  isSaving?: boolean
+  lastSavedAt?: number | null
   disabled?: boolean
   className?: string
 }
@@ -21,6 +25,10 @@ type ConfigSection = 'timing' | 'filters' | 'execution' | 'autosell' | 'safety' 
 export function SniperConfigPanel({
   config,
   onConfigChange,
+  onSave,
+  isDirty = false,
+  isSaving = false,
+  lastSavedAt = null,
   disabled = false,
   className,
 }: SniperConfigPanelProps) {
@@ -70,7 +78,29 @@ export function SniperConfigPanel({
         title="Sniper Configuration" 
         subtitle="Fine-tune your hunting parameters"
         action={
-          <div className="flex gap-1">
+          <div className="flex items-center gap-2">
+            {/* Save */}
+            {onSave && (
+              <div className="flex items-center gap-2">
+                {isDirty ? (
+                  <GoldBadge variant="warning" size="xs">UNSAVED</GoldBadge>
+                ) : (
+                  <GoldBadge variant="success" size="xs">SAVED</GoldBadge>
+                )}
+                <GoldButton
+                  size="sm"
+                  variant="primary"
+                  disabled={disabled || !isDirty || isSaving}
+                  onClick={onSave}
+                >
+                  {isSaving ? 'SAVING…' : 'SAVE'}
+                </GoldButton>
+              </div>
+            )}
+
+            <div className="h-6 w-px bg-white/10" />
+
+            {/* Presets */}
             <GoldButton size="sm" variant="ghost" onClick={() => applyPreset('conservative')}>
               SAFE
             </GoldButton>

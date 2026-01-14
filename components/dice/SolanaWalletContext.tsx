@@ -79,7 +79,7 @@ export const SolanaWalletProvider: React.FC<SolanaWalletProviderProps> = ({ chil
     checkRegistration();
   }, [publicKey]);
 
-  // Fetch token balances from Helius RPC
+  // Fetch token balances from RPC
   const fetchTokenBalances = useCallback(async () => {
     if (!publicKey) return;
     
@@ -87,7 +87,7 @@ export const SolanaWalletProvider: React.FC<SolanaWalletProviderProps> = ({ chil
     setTokenError(null);
     
     try {
-      // Fetch token balances through our backend (which uses Helius RPC)
+      // Fetch token balances through our backend (RPC-backed)
       const response = await axios.get(`/api/solana/token-balances/${publicKey}`);
       
       if (response.data.success && response.data.tokens) {
