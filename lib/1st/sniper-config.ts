@@ -140,13 +140,13 @@ export const DEFAULT_SNIPER_CONFIG: SniperConfig = {
   minBlockDelay: 0,
   
   // Entry filters
-  minHolders: 0,
-  maxHolders: 1000,
+  minHolders: 5,
+  maxHolders: 5000,
   minDevHoldings: 0,
   maxDevHoldings: 90,
   snipeOnDevSell: false,
   minTransactionCount: 0,
-  minLiquidityUsd: 1000,
+  minLiquidityUsd: 5,
   maxLiquidityUsd: 1000000,
   minMarketCap: 0,
   maxMarketCap: 300000,

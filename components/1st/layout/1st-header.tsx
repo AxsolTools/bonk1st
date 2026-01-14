@@ -78,7 +78,7 @@ const navItems = [
 
 export function FirstHeader() {
   const pathname = usePathname()
-  const { isAuthenticated, activeWallet, wallets, setIsOnboarding, disconnect } = useAuth()
+  const { isAuthenticated, activeWallet, wallets, setIsOnboarding, setShowWalletManager, disconnect } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
   const [showDisconnectMenu, setShowDisconnectMenu] = React.useState(false)
   
@@ -118,7 +118,7 @@ export function FirstHeader() {
                 <span className="text-xl font-bold tracking-tight text-[#D4AF37] group-hover:text-[#FFD700] transition-colors">
                   BONK1ST
                 </span>
-                <span className="text-[9px] text-white/40 tracking-widest uppercase">
+                <span className="text-[9px] text-white/50 tracking-widest uppercase font-bold">
                   wanna be first?
                 </span>
               </div>
@@ -155,14 +155,19 @@ export function FirstHeader() {
             {/* Wallet */}
             {isAuthenticated && activeWallet ? (
               <div className="relative flex items-center gap-2 disconnect-menu-container">
-                <div className="hidden sm:block text-right">
-                  <p className="text-xs text-white/50">
-                    {wallets.length} wallet{wallets.length !== 1 ? 's' : ''}
-                  </p>
-                  <p className="text-xs font-mono text-[#D4AF37]">
-                    {truncateAddress(activeWallet.public_key)}
-                  </p>
-                </div>
+                <button
+                  onClick={() => setShowWalletManager(true)}
+                  className="hidden sm:flex items-center gap-2 text-right hover:opacity-80 transition-opacity"
+                >
+                  <div>
+                    <p className="text-xs text-white/50">
+                      {wallets.length} wallet{wallets.length !== 1 ? 's' : ''}
+                    </p>
+                    <p className="text-xs font-mono text-[#D4AF37]">
+                      {truncateAddress(activeWallet.public_key)}
+                    </p>
+                  </div>
+                </button>
                 <button
                   onClick={() => setShowDisconnectMenu(!showDisconnectMenu)}
                   className="w-8 h-8 rounded-full bg-gradient-to-br from-[#D4AF37]/20 to-[#B8860B]/20 border border-[#D4AF37]/30 flex items-center justify-center hover:border-[#D4AF37]/50 transition-colors"
@@ -175,6 +180,18 @@ export function FirstHeader() {
                 {/* Disconnect Dropdown */}
                 {showDisconnectMenu && (
                   <div className="absolute top-full right-0 mt-2 w-48 bg-[#0A0A0A] border border-[#D4AF37]/30 rounded-lg shadow-xl z-50 overflow-hidden">
+                    <button
+                      onClick={() => {
+                        setShowWalletManager(true)
+                        setShowDisconnectMenu(false)
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm text-white hover:bg-[#D4AF37]/10 transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                      Manage Wallets
+                    </button>
                     <button
                       onClick={() => {
                         disconnect()

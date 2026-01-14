@@ -12,6 +12,7 @@ interface WalletAuthContextType {
   activeWallet: Wallet | null
   isLoading: boolean
   isOnboarding: boolean
+  showWalletManager: boolean
   userId: string | null
   sessionId: string | null // Alias for userId (they are the same)
   
@@ -24,6 +25,7 @@ interface WalletAuthContextType {
   getToggledWalletAddresses: () => string[]
   
   setIsOnboarding: (value: boolean) => void
+  setShowWalletManager: (value: boolean) => void
   refreshWallets: () => Promise<void>
   setActiveWallet: (wallet: Wallet) => Promise<void>
   setMainWallet: (wallet: Wallet) => Promise<void>
@@ -39,6 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [activeWallet, setActiveWalletState] = useState<Wallet | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isOnboarding, setIsOnboarding] = useState(false)
+  const [showWalletManager, setShowWalletManager] = useState(false)
   const [userId, setUserIdState] = useState<string | null>(null)
   
   // Multi-wallet trading state - persistent in localStorage
@@ -231,6 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         activeWallet,
         isLoading,
         isOnboarding,
+        showWalletManager,
         userId,
         sessionId: userId, // Alias - sessionId and userId are the same
         
@@ -243,6 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         getToggledWalletAddresses,
         
         setIsOnboarding,
+        setShowWalletManager,
         refreshWallets,
         setActiveWallet,
         setMainWallet,

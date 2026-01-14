@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { FirstHeader, FirstFooter } from "@/components/1st/layout/1st-header"
-import { WalletOnboarding1st } from "@/components/1st/wallet/wallet-onboarding-1st"
+import { WalletOnboardingSimple1st } from "@/components/1st/wallet/wallet-onboarding-simple-1st"
+import { WalletManager1st } from "@/components/1st/wallet/wallet-manager-1st"
 import "@/components/1st/theme/gold-theme.css"
 
 export const metadata: Metadata = {
@@ -73,8 +74,11 @@ export default function FirstLayout({
       {/* Footer Status Bar */}
       <FirstFooter />
       
-      {/* Gold-themed Wallet Onboarding Modal */}
-      <WalletOnboarding1st />
+      {/* Simple Wallet Connection Modal */}
+      <WalletOnboardingSimple1st />
+      
+      {/* Wallet Manager - handles generation, import, and management */}
+      <WalletManager1st />
     </div>
   )
 }
