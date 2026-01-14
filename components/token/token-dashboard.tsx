@@ -194,7 +194,7 @@ export function TokenDashboard({ address }: TokenDashboardProps) {
           const priceData = await priceResponse.json()
           if (priceData.success) {
             metadata = {
-              name: "External Token",
+              name: mintAddress.slice(0, 8).toUpperCase(),
               symbol: mintAddress.slice(0, 6).toUpperCase(),
               decimals: 9,
               supply: 0,
@@ -235,7 +235,7 @@ export function TokenDashboard({ address }: TokenDashboardProps) {
         mint_address: mintAddress,
         name: metadata.name,
         symbol: metadata.symbol,
-        description: metadata.description || `External token: ${mintAddress}`,
+        description: metadata.description || metadata.name || `${metadata.symbol} token`,
         image_url: metadata.image || metadata.logoUri || "",
         metadata_uri: metadata.uri || "",
         total_supply: metadata.supply || 0,
