@@ -152,6 +152,23 @@ export function FirstHeader() {
               </GoldBadge>
             </div>
             
+            {/* X (Twitter) Link */}
+            <a
+              href="https://x.com/bonk1st"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center justify-center w-8 h-8 rounded-lg bg-[#D4AF37]/5 border border-[#D4AF37]/20 hover:bg-[#D4AF37]/10 hover:border-[#D4AF37]/40 transition-all duration-200 group"
+              aria-label="Follow BONK1ST on X (Twitter)"
+            >
+              <svg 
+                className="w-4 h-4 text-[#D4AF37]/60 group-hover:text-[#D4AF37] transition-colors" 
+                fill="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+            </a>
+            
             {/* Wallet */}
             {isAuthenticated && activeWallet ? (
               <div className="relative flex items-center gap-2 disconnect-menu-container">
@@ -252,6 +269,24 @@ export function FirstHeader() {
                   {item.label}
                 </Link>
               ))}
+              
+              {/* X (Twitter) Link - Mobile */}
+              <a
+                href="https://x.com/bonk1st"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="px-4 py-3 text-sm font-semibold uppercase tracking-wider rounded-lg transition-all duration-200 text-white/60 hover:text-white hover:bg-white/5 flex items-center gap-2"
+              >
+                <svg 
+                  className="w-4 h-4" 
+                  fill="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+                FOLLOW ON X
+              </a>
             </div>
           </nav>
         )}
