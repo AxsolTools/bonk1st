@@ -1,5 +1,12 @@
-import { redirect } from "next/navigation"
+"use client"
+
+import { SniperDashboard } from "@/components/1st/sniper/sniper-dashboard"
+import { TokenGateGuard } from "@/components/1st/access/token-gate-guard"
 
 export default function HomePage() {
-  redirect("/1st")
+  return (
+    <TokenGateGuard>
+      <SniperDashboard />
+    </TokenGateGuard>
+  )
 }

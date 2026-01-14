@@ -70,7 +70,7 @@ const FirstLogo: React.FC<{ size?: 'sm' | 'md' | 'lg'; animated?: boolean }> = (
 
 // Navigation items
 const navItems = [
-  { href: '/1st', label: 'SNIPER', exact: true },
+  { href: '/', label: 'SNIPER', exact: true },
   { href: '/1st/tokens', label: 'NEW TOKENS' },
   { href: '/1st/pairs', label: 'PAIRS' },
   { href: '/1st/history', label: 'HISTORY' },
@@ -112,7 +112,7 @@ export function FirstHeader() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo & Brand */}
           <div className="flex items-center gap-4">
-            <Link href="/1st" className="flex items-center gap-3 group">
+            <Link href="/" className="flex items-center gap-3 group">
               <FirstLogo size="md" />
               <div className="flex flex-col">
                 <span className="text-xl font-bold tracking-tight text-[#D4AF37] group-hover:text-[#FFD700] transition-colors">
