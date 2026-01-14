@@ -16,6 +16,34 @@ const HELIUS_RPC = process.env.HELIUS_RPC_URL || "https://api.mainnet-beta.solan
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY
 const connection = new Connection(HELIUS_RPC, "confirmed")
 
+/**
+ * Global RPC concurrency limiter
+ *
+ * Why: token pages and token grids can trigger many stats requests at once,
+ * and each stats request performs multiple RPC calls. Without a limiter, the app
+ * can stampede the RPC provider and trigger 429 "max usage reached".
+ *
+ * This does NOT change the functional flow; it only queues excess RPC calls.
+ */
+const MAX_CONCURRENT_RPC = Number.parseInt(process.env.RPC_CONCURRENCY_LIMIT || "6", 10)
+let activeRpcCalls = 0
+const rpcQueue: Array<() => void> = []
+
+async function withRpcLimit<T>(fn: () => Promise<T>): Promise<T> {
+  if (activeRpcCalls >= MAX_CONCURRENT_RPC) {
+    await new Promise<void>((resolve) => rpcQueue.push(resolve))
+  }
+
+  activeRpcCalls++
+  try {
+    return await fn()
+  } finally {
+    activeRpcCalls--
+    const next = rpcQueue.shift()
+    if (next) next()
+  }
+}
+
 // Pump.fun program ID and bonding curve constants
 const PUMP_PROGRAM_ID = new PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P")
 const PUMP_MIGRATION_THRESHOLD_SOL = 85 // ~$12,750 at $150 SOL
@@ -158,7 +186,9 @@ async function fetchHolderCount(mintAddress: string): Promise<number> {
 
   // Fallback: Use getTokenLargestAccounts to estimate
   try {
-    const accounts = await connection.getTokenLargestAccounts(new PublicKey(mintAddress))
+    const accounts = await withRpcLimit(() =>
+      connection.getTokenLargestAccounts(new PublicKey(mintAddress))
+    )
     // Count accounts with non-zero balance
     return accounts.value.filter(a => a.uiAmount && a.uiAmount > 0).length
   } catch (error) {
@@ -229,7 +259,7 @@ async function fetchBondingCurveProgress(mintAddress: string): Promise<{
     )
 
     // Get bonding curve account balance
-    const balance = await connection.getBalance(bondingCurvePDA)
+    const balance = await withRpcLimit(() => connection.getBalance(bondingCurvePDA))
     const solBalance = balance / LAMPORTS_PER_SOL
 
     // Calculate progress (85 SOL = 100% = migration)
